@@ -19,6 +19,21 @@ function vipTick(){if(!vipOn())return;while(S.vip&&S.vip.next<=Date.now()){save(
 // ---------- Audio ----------
 let AC;const beep=(f,d,v=1,type='sine',k='sfx')=>{try{AC=AC||new AudioContext();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.value=.15*v*S.set[k]*S.set.vol;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}};
 const chime=()=>[392,523,659,784].forEach((f,i)=>setTimeout(()=>beep(f,.5),i*220)); // jingle original (le son Windows est protégé)
+// ---------- Sons réalistes (synthèse Web Audio : aucun fichier à charger) ----------
+const ac=()=>{AC=AC||new AudioContext();if(AC.state=='suspended')AC.resume();return AC};
+const vol=(k='sfx')=>S.set[k]*S.set.vol;
+let NB=null,RG=null,hum=null;const noiseBuf=()=>{const a=ac();if(!NB){NB=a.createBuffer(1,a.sampleRate*2,a.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}return NB};
+function tick(o){try{const a=ac(),t=a.currentTime+(o.at||0),n=a.createBufferSource();n.buffer=noiseBuf();n.playbackRate.value=o.rate||1;
+ const f=a.createBiquadFilter();f.type=o.type||'bandpass';f.frequency.value=o.f;f.Q.value=o.q||1;const g=a.createGain();g.gain.setValueAtTime(o.v*vol(o.k),t);g.gain.exponentialRampToValueAtTime(.0001,t+o.d);n.connect(f);f.connect(g);g.connect(a.destination);n.start(t,Math.random(),o.d+.02);
+ if(o.th){const q=a.createOscillator(),h=a.createGain();q.frequency.setValueAtTime(o.th,t);q.frequency.exponentialRampToValueAtTime(o.th*.5,t+.06);h.gain.setValueAtTime(o.tv*vol(o.k),t);h.gain.exponentialRampToValueAtTime(.0001,t+.07);q.connect(h);h.connect(a.destination);q.start(t);q.stop(t+.08)}}catch(e){}}
+const kbd=k=>{const big=k==' '||k=='Enter'||k=='Backspace',r=.9+Math.random()*.25;tick({f:(big?1400:2600)*r,q:.8,d:.035,v:1.1,rate:r,th:(big?120:190)*r,tv:.5});tick({f:4200*r,q:1.5,d:.015,v:.35,at:.075,rate:r,type:'highpass'})};
+const mclick=()=>{tick({f:3200,q:2,d:.012,v:1.1,th:900,tv:.25});tick({f:2600,q:2,d:.012,v:.6,at:.085})};
+const pwrClick=()=>tick({f:900,q:.7,d:.09,v:1.4,th:90,tv:.9}),hangup=()=>tick({f:500,q:.8,d:.06,v:1.2,th:150,tv:.7}),pickup=()=>{tick({f:1800,q:1,d:.02,v:.8});tick({f:600,q:.8,d:.05,v:.9,at:.06,th:130,tv:.5})};
+const humOn=()=>{try{if(hum)return;const a=ac(),n=a.createBufferSource();n.buffer=noiseBuf();n.loop=true;const f=a.createBiquadFilter();f.type='lowpass';f.frequency.value=260;const g=a.createGain();g.gain.value=0;g.gain.linearRampToValueAtTime(.09*vol(),a.currentTime+3);n.connect(f);f.connect(g);g.connect(a.destination);n.start();hum={n,g}}catch(e){}};
+const humOff=()=>{if(!hum)return;try{hum.g.gain.linearRampToValueAtTime(0,AC.currentTime+.8);hum.n.stop(AC.currentTime+.9)}catch(e){}hum=null};
+// sonnerie de téléphone à cloches : « dring-dring-dring… » (2 marteaux alternés ~24 coups/s)
+function bell(t0,fr,dst){const a=ac();[1,2.76,5.4].forEach((m,j)=>{const o=a.createOscillator(),g=a.createGain();o.frequency.value=fr*m;g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime((.22/(j+1))*vol('call'),t0+.002);g.gain.exponentialRampToValueAtTime(.0001,t0+.06);o.connect(g);g.connect(dst);o.start(t0);o.stop(t0+.07)})}
+function ringOnce(){try{const a=ac(),t=a.currentTime+.02;RG=a.createGain();RG.connect(a.destination);for(let i=0;i<34;i++)bell(t+i/24,i%2?1380:1130,RG)}catch(e){}}
 const speak=t=>{if(!S.set.voice||!window.speechSynthesis)return;const u=new SpeechSynthesisUtterance(t);u.lang='fr-FR';u.volume=S.set.call*S.set.vol;speechSynthesis.speak(u)};
 // ---------- Personnages (250 générés) ----------
 const F='Léa Hugo Inès Marc Zoé Théo Nina Paul Lola Axel Maya Remi Clara Odile Samir Yanis Elsa Bruno Anaïs Victor Salomé Karim Jade Émile Nora Gaspard Iris Lucas Mila Ravi Flora Basile Ysé Tom Alice Noé Cléo Jules Sana Oscar Lina Étienne Maëlle Dimitri Rose Ismaël Eva Cyril Thaïs Léon'.split(' '),L=['Martin','Roux','Fabre','Morel','Girard'];
@@ -105,6 +120,9 @@ const keys=new THREE.InstancedMesh(kg,new THREE.MeshStandardMaterial({color:0x23
 function setKey(i,o){dummy.position.set(kp[i][0],KB.y-o,kp[i][1]);dummy.updateMatrix();keys.setMatrixAt(i,dummy.matrix);keys.instanceMatrix.needsUpdate=true}
 kp.forEach((_,i)=>setKey(i,0));keys.castShadow=true;sc.add(keys);
 rbH(.9,.1,.05,.02,M(0x23232d,{roughness:.38}),KB.x-.1,KB.y,KB.z+.27,sc,.008);
+{const LB=["`",'1','2','3','4','5','6','7','8','9','0','-','=','⌫','⇥','Q','W','E','R','T','Y','U','I','O','P','[',']','⇪','A','S','D','F','G','H','J','K','L',';',"'",'↵','⇧','Z','X','C','V','B','N','M',',','.','/','⇧'],PW=1.9,PH=.74;
+ const lt=cvTex(1024,400,(g,w,h)=>{g.textAlign='center';g.textBaseline='middle';g.font='bold 34px Segoe UI,Arial';g.fillStyle='#e6dcff';kp.forEach((q,i)=>g.fillText(LB[i]||'',(q[0]-KB.x)/PW*w+w/2,(q[1]-KB.z)/PH*h+h/2))});
+ const lp=new THREE.Mesh(new THREE.PlaneGeometry(PW,PH),new THREE.MeshBasicMaterial({map:lt,transparent:true,depthWrite:false,opacity:.9}));lp.rotation.x=-Math.PI/2;lp.position.set(KB.x,KB.y+.0265,KB.z);sc.add(lp);halo(0x7b2fff,2.6,KB.x,1.2,KB.z,.25)}
 cable([[KB.x,1.03,KB.z-.36],[KB.x,1.0,.3],[.4,.99,-.5],[1.2,.98,-1.3],[3.6,.98,-1.0]]);
 // --- souris : coque, boutons, molette dorée, LED, câble absent (sans fil) ---
 const mouse=new THREE.Group(),mb=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),M(0x17171d,{roughness:.28,metalness:.55,envMapIntensity:1}));mb.scale.set(.15,.065,.24);mb.position.y=.03;mb.castShadow=true;mouse.add(mb);
@@ -189,7 +207,7 @@ function drawR(g,T){g.fillStyle='#14101f';g.fillRect(0,0,SW,SH);g.textAlign='lef
  for(let i=0;i<26;i++){const h=call?20+Math.abs(Math.sin(T*7+i*.7))*80*(.5+Math.abs(Math.sin(T*2+i))):6+Math.abs(Math.sin(T+i*.4))*8;g.fillStyle=`hsl(${260+i*3} 90% 60%)`;g.fillRect(660+i*13,300-h,9,h)}
  g.fillStyle='#8a78b8';g.font='18px '+FNT;g.fillText(call?'Appel en cours — '+call.c.n:ringT?'Appel entrant…':'Aucun appel',660,330);
  g.strokeStyle='#7b2fff';g.lineWidth=3;g.beginPath();for(let x=0;x<=330;x+=6){const y=500-20-Math.abs(Math.sin(T*.8+x*.04))*30-Math.sin(x*.13+T*2)*8;x?g.lineTo(660+x,y):g.moveTo(660,y)}g.stroke();g.fillStyle='#8a78b8';g.fillText('Activité système',660,545)}
-function drawAll(T){for(const n in scrDef){const g=sCv[n].getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,SW,SH);g.textBaseline='alphabetic';if(scrOn){({left:drawL,top:drawT,right:drawR})[n](g,T)}else{g.fillStyle='#000';g.fillRect(0,0,SW,SH)}sTx[n].needsUpdate=true}}
+function drawAll(T){for(const n in scrDef){const g=sCv[n].getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,SW,SH);g.textBaseline='alphabetic';if(scrOn){({left:drawL,top:drawT,right:drawR})[n](g,T);const v=g.createRadialGradient(SW/2,SH/2,SH*.35,SW/2,SH/2,SW*.62);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.35)');g.fillStyle=v;g.fillRect(0,0,SW,SH);g.fillStyle='rgba(0,0,0,.07)';for(let y=0;y<SH;y+=3)g.fillRect(0,y,SW,1)}else{g.fillStyle='#000';g.fillRect(0,0,SW,SH)}sTx[n].needsUpdate=true}}
 // ----- caméra -----
 const home={p:new THREE.Vector3(.5,2.6,6.3),l:new THREE.Vector3(.4,2.2,-.5)};let tp=home.p.clone(),tl=home.l.clone(),cl=home.l.clone(),cp=home.p.clone(),view='home';cam.position.copy(tp);
 function size(){const q=[.5,.75,1][S.set.q|0]||1;rd.setPixelRatio(Math.min(devicePixelRatio,2)*q);rd.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();document.body.style.zoom=S.set.sc;vg.style.display=(S.set.q>=1&&S.set.fx>0)?'block':'none'}
@@ -198,8 +216,8 @@ function go(n){view=n;if(n=='home'){tp.copy(home.p);tl.copy(home.l)}else{const p
 // ----- animation : mains, clavier, souris, lumières, caméra -----
 const pv=new THREE.Vector3(),off={x:0,y:0},ptr={x:0,y:0},presses=new Map(),fpT=[[0,0,0,0],[0,0,0,0]],mt={x:1.45,z:1.3};let typing=0,typT=0,clkT=0,lastKX=0,lastD=-1,lastPtr=0;
 addEventListener('pointermove',e=>{ptr.x=e.clientX/innerWidth*2-1;ptr.y=e.clientY/innerHeight*2-1;lastPtr=performance.now()});
-addEventListener('pointerdown',()=>{clkT=performance.now();beep(900,.02,.4,'square')});
-addEventListener('keydown',e=>{typing=1;const ki=(e.key&&e.key.length==1?e.key.toLowerCase().charCodeAt(0):e.keyCode||7)%kp.length;presses.set(ki,performance.now());const h=kp[ki][0]<KB.x?0:1;fpT[h][ki%4]=performance.now();lastKX=kp[ki][0]-KB.x;clearTimeout(typT);typT=setTimeout(()=>typing=0,400);beep(1300+Math.random()*500,.015,.45,'square')});
+addEventListener('pointerdown',()=>{clkT=performance.now();mclick()});
+addEventListener('keydown',e=>{typing=1;const ki=(e.key&&e.key.length==1?e.key.toLowerCase().charCodeAt(0):e.keyCode||7)%kp.length;presses.set(ki,performance.now());const h=kp[ki][0]<KB.x?0:1;fpT[h][ki%4]=performance.now();lastKX=kp[ki][0]-KB.x;clearTimeout(typT);typT=setTimeout(()=>typing=0,400);kbd(e.key)});
 function loop(t){requestAnimationFrame(loop);const T=t/1000,now=performance.now(),hm=view=='home';
  cp.lerp(tp,.07);cl.lerp(tl,.07);off.x+=((hm?ptr.x*.4:ptr.x*.05)-off.x)*.05;off.y+=((hm?-ptr.y*.15:-ptr.y*.03)-off.y)*.05;
  cam.position.set(cp.x+off.x+Math.sin(T*.5)*.015,cp.y+off.y+Math.sin(T*.7)*.012,cp.z);cam.lookAt(cl);
@@ -214,7 +232,7 @@ function loop(t){requestAnimationFrame(loop);const T=t/1000,now=performance.now(
  // RGB : clavier, ventilateurs, LEDs ; lueur des écrans
  const hue=(T/7)%1,hc=new THREE.Color().setHSL(hue,.9,.5);keys.material.emissive.setHSL(hue,.9,ON.v?.07:0);kbGlow.material.emissive.copy(hc);kbGlow.material.emissiveIntensity=ON.v?1.4:0;
  fans.forEach((f,i)=>{const m=f.userData.ring.material;m.emissive.setHSL((hue+i*.12)%1,.9,.5);m.emissiveIntensity=ON.v?1.8:0;f.userData.sp.rotation.z-=ON.v?.12:0});
- for(const n in glow){const l=glow[n];l.intensity+=((ON.v?10*S.set.fx:0)-l.intensity)*.05;scr[n].material.emissiveIntensity=scrOn?1:0;scr[n].userData.dot.material.color.setHex(ON.v?0x2aff6a:0x222222)}
+ for(const n in glow){const l=glow[n];l.intensity+=((ON.v?10*S.set.fx:0)-l.intensity)*.05;scr[n].material.emissiveIntensity+=((scrOn?1:0)-scr[n].material.emissiveIntensity)*.08;scr[n].userData.dot.material.color.setHex(ON.v?0x2aff6a:0x222222)}
  ug.intensity+=((ON.v?14*S.set.fx:0)-ug.intensity)*.05;cpl.intensity+=((ON.v?10*S.set.fx:0)-cpl.intensity)*.05;halos.forEach(h=>h.material.opacity=h.userData.o*(ON.v?1:.12)*(.5+.5*S.set.fx));
  pbtn.material.emissive.setHex(tut.s==0&&!ON.v?(Math.sin(t/150)>0?0xffffff:0x333300):ON.v?0x00aa55:0x331100);pring.material.emissiveIntensity=ON.v?2:0;
  key.intensity=6*S.set.fx;room.intensity+=((ON.v?35:380)-room.intensity)*.04;amb.intensity+=((ON.v?.25:1.6)-amb.intensity)*.04;dust.rotation.y=T*.015;dust.position.y=Math.sin(T*.3)*.1;
@@ -238,9 +256,9 @@ cv.addEventListener('click',e=>{if(view!='home'||busy)return;mv.set(e.clientX/in
  if(n=='power'){if(ok('power')&&!ON.v)boot()}else if(ON.v&&scrOn&&okS(n)){go(n);busy=1;setTimeout(()=>{busy=0;panel(n)},850);ev(n)}});
 let busy=0;
 $('#x').onclick=()=>{$('#pn').style.display=$('#x').style.display='none';go('home')};
-function boot(){busy=1;ON.v=1;pbtn.position.z=pz0-.04;beep(200,.2);$('#boot').style.display='flex';setTimeout(()=>{$('#boot').style.display='none';chime();scrOn=1;busy=0;ev('power');vipTick()},2600)}
+function boot(){busy=1;ON.v=1;pbtn.position.z=pz0-.04;pwrClick();humOn();$('#boot').style.display='flex';setTimeout(()=>{$('#boot').style.display='none';chime();scrOn=1;busy=0;ev('power');vipTick()},2600)}
 async function shutdown(){busy=1;const m=$('#msg');m.style.display='flex';m.textContent='Sauvegarde de la progression…';await save(1);await new Promise(r=>setTimeout(r,1200));m.textContent='EXTINCTION DU PC…';await new Promise(r=>setTimeout(r,1500));
- scrOn=0;ON.v=0;pbtn.position.z=pz0;$('#pn').style.display=$('#x').style.display='none';go('home');m.style.display='none';busy=0;toast('PC éteint. Rallume-le avec le bouton.')}
+ scrOn=0;ON.v=0;humOff();pwrClick();pbtn.position.z=pz0;$('#pn').style.display=$('#x').style.display='none';go('home');m.style.display='none';busy=0;toast('PC éteint. Rallume-le avec le bouton.')}
 // ---------- Panneaux ----------
 let app=null,menuOpen=0,started=0;const pn=$('#pn');
 const APPS=[['phone','Téléphone','📞'],['bol','BOL','📇'],['scam','SCAM','🪪'],['bank','Ma Banque','🏦'],['shop','MAMAZON','🛒'],['sub','ABONNEMENT','⭐'],['save','ENREGISTRER','💾'],['quest','Quêtes','🏆'],['dset','Paramètres','⚙️']];
@@ -298,18 +316,18 @@ function buy(k){if(k[0]=='p'){const i=+k.slice(1),c=CH[i];if(S.own.includes(i))r
 // ---------- Appels ----------
 let call=null,ringT=null,next=Date.now()+8000,redial={};
 const ring=$('#ring'),cd=$('#call');
-function incoming(i){if(call||ringT)return;const c=CH[i];ringT=setInterval(()=>beep(880,.2,1,'square','call'),700);ring.style.display='block';ring.innerHTML=`<div class="pt">${face(c)}</div><p><b>${c.n}</b> vous appelle…</p><button class="g" data-a="ans">Répondre</button> <button class="r" data-a="ref">Refuser</button>`;ring.dataset.i=i;ring.to=setTimeout(()=>{if(ringT){hang('manqué',1)}},12000)}
-function stopRing(){clearInterval(ringT);ringT=null;clearTimeout(ring.to);ring.style.display='none'}
+function incoming(i){if(call||ringT)return;const c=CH[i];ringOnce();ringT=setInterval(ringOnce,3200);ring.style.display='block';ring.innerHTML=`<div class="pt">${face(c)}</div><p><b>${c.n}</b> vous appelle…</p><button class="g" data-a="ans">Répondre</button> <button class="r" data-a="ref">Refuser</button>`;ring.dataset.i=i;ring.to=setTimeout(()=>{if(ringT){hang('manqué',1)}},12000)}
+function stopRing(){if(RG)RG.gain.value=0;clearInterval(ringT);ringT=null;clearTimeout(ring.to);ring.style.display='none'}
 function answer(){const i=+ring.dataset.i;stopRing();startCall(i)}
-function startCall(i){if(tut.s>=0&&TS[tut.s][0]!='call'&&TS[tut.s][0]!='end')return toast('Suis le tutoriel');call={c:CH[i],raw:50,said:[],n:0};ev('call');cd.style.display='flex';cd.innerHTML=`<div style="text-align:center"><div class="pt" id="cp" style="width:110px;height:110px">${face(call.c)}</div><h3>${call.c.n}</h3><div class="bar"><i id="tb" style="width:50%"></i></div><small id="tp">Confiance 50 %</small></div><div id="lg" style="flex:1;overflow:auto;margin:8px 0;border:1px solid #6b4fb0;padding:8px"></div><div><input id="ti" style="width:55%" placeholder="Ton message…"> <button data-a="snd">Envoyer</button> <button data-a="mic">🎤</button> <button class="r" data-a="hup">Raccrocher</button></div>`;$('#ti').onkeydown=e=>{if(e.key=='Enter')send()};say(pick(TD[call.c.ty].op))}
+function startCall(i){if(tut.s>=0&&TS[tut.s][0]!='call'&&TS[tut.s][0]!='end')return toast('Suis le tutoriel');pickup();call={c:CH[i],raw:50,said:[],n:0};ev('call');cd.style.display='flex';cd.innerHTML=`<div style="text-align:center"><div class="pt" id="cp" style="width:110px;height:110px">${face(call.c)}</div><h3>${call.c.n}</h3><div class="bar"><i id="tb" style="width:50%"></i></div><small id="tp">Confiance 50 %</small></div><div id="lg" style="flex:1;overflow:auto;margin:8px 0;border:1px solid #6b4fb0;padding:8px"></div><div><input id="ti" style="width:55%" placeholder="Ton message…"> <button data-a="snd">Envoyer</button> <button data-a="mic">🎤</button> <button class="r" data-a="hup">Raccrocher</button></div>`;$('#ti').onkeydown=e=>{if(e.key=='Enter')send()};say(pick(TD[call.c.ty].op))}
 function say(t){const l=$('#lg');l.innerHTML+=`<p><b>${call.c.n} :</b> ${t}</p>`;l.scrollTop=1e5;const p=$('#cp');p.classList.add('talk');setTimeout(()=>p.classList.remove('talk'),Math.min(4000,t.length*70));speak(t)}
 function send(){const i=$('#ti');if(!call||!i.value.trim())return;const t=i.value.trim();i.value='';$('#lg').innerHTML+=`<p style="color:#9cf"><b>Toi :</b> ${t}</p>`;const cat=analyse(call,t),ask=CI.test(t)?askCard():null,tr=Math.max(0,Math.min(100,call.raw));$('#tb').style.width=tr+'%';$('#tp').textContent='Confiance '+Math.round(tr)+' %';call.n++;
- if(call.raw<=-5){$('#cp').classList.remove('talk');beep(150,.6,1,'sawtooth');const m=$('#msg');m.style.display='flex';m.textContent='IL T’A RACCROCHÉ AU NEZ !';setTimeout(()=>m.style.display='none',1800);return end('raccroché au nez')}
+ if(call.raw<=-5){$('#cp').classList.remove('talk');[0,300,600].forEach(d=>setTimeout(()=>beep(425,.2,1,'sine','call'),d));const m=$('#msg');m.style.display='flex';m.textContent='IL T’A RACCROCHÉ AU NEZ !';setTimeout(()=>m.style.display='none',1800);return end('raccroché au nez')}
  say(ask||pick(TD[call.c.ty][cat]))}
 function mic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return toast('Reconnaissance vocale indisponible : utilise le clavier');const r=new SR();r.lang='fr-FR';r.onresult=e=>{$('#ti').value=e.results[0][0].transcript;send()};r.onerror=()=>toast('Micro refusé');r.start()}
 function hang(r,inc){if(inc&&ringT){const i=+ring.dataset.i;stopRing();S.hist.push({i,r,d:Date.now()});redial[i]=(redial[i]||0)+1;if(redial[i]<=3&&r=='refusé')setTimeout(()=>{if(S.set.inc)incoming(i)},R(4000,9000));save();next=Date.now()+R(3000,7000);return}end(r)}
 function end(r){const c=call.c;if(window.speechSynthesis)speechSynthesis.cancel();S.hist.push({i:c.i,r,d:Date.now()});S.calls++;if(r=='réussi'){if(!S.unl.includes(c.i)){S.unl.push(c.i);gain(500*c.dif,'Appel réussi : '+c.n);toast(c.n+' ajouté à BOL !')}else toast('Appel réussi (déjà débloqué)')}
- call=null;cd.innerHTML='<h2 style="text-align:center">Fin d’appel…</h2>';beep(300,.3);setTimeout(()=>{cd.style.display='none';if(pn.dataset.n=='left'&&app=='phone')render()},1100);next=Date.now()+R(3000,7000);save();ev('end')}
+ call=null;cd.innerHTML='<h2 style="text-align:center">Fin d’appel…</h2>';hangup();setTimeout(()=>{cd.style.display='none';if(pn.dataset.n=='left'&&app=='phone')render()},1100);next=Date.now()+R(3000,7000);save();ev('end')}
 setInterval(()=>{vipTick();if(ON.v&&S.set.inc&&!call&&!ringT&&Date.now()>next&&tut.s<0){const l=CH.filter(avail);incoming(pick(l).i);next=Date.now()+R(25000,45000)}if(pn.dataset.n=='left'&&started&&!app&&pn.style.display=='block'){const t=pn.querySelector('.tb span:last-child');if(t)t.textContent=clk()}},1000);
 // ---------- Firebase (facultatif) ----------
 const cfg={apiKey:"AIzaSyDoHkXTbF_ypvBmrj4RdZG9chb32rY9hP8",authDomain:"scam-game-2db05.firebaseapp.com",projectId:"scam-game-2db05",storageBucket:"scam-game-2db05.firebasestorage.app",messagingSenderId:"186640063309",appId:"1:186640063309:web:60b673d28362f639f73504",measurementId:"G-PBQ5WPBZX5"};
