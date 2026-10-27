@@ -5,7 +5,8 @@
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:#050308;color:#f3e3b0;font-family:Segoe UI,Tahoma,sans-serif;overflow:hidden}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block}
 #pn{position:fixed;inset:5%;display:none;background:#0b0710;border:2px solid #d4af37;border-radius:10px;box-shadow:0 0 40px #7b2fff;overflow:auto;z-index:5}
-#x{position:fixed;top:6%;right:6%;z-index:9;display:none;background:#d4af37;color:#000;border:0;font-size:22px;width:38px;height:38px;border-radius:50%;cursor:pointer}
+#cb{font-size:34px;padding:16px 46px;background:linear-gradient(#7be08a,#2e9b3c 50%,#1d7a2b);color:#fff;border:3px solid #fff;border-radius:44px;box-shadow:0 7px 0 #14561d,0 0 50px #fffb;text-shadow:1px 2px 3px #0008;animation:pl2 1.6s infinite}#arrow{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:radial-gradient(circle,#b57bffaa 0,#7b2fff55 40%,transparent 70%);z-index:12;pointer-events:none;display:none;animation:pl2 1s infinite}#arrow:before{content:'⬇';position:absolute;left:50%;top:-52px;transform:translateX(-50%);font-size:48px;color:#ffd75e;text-shadow:0 0 12px #000;animation:bn .7s infinite alternate}@keyframes bn{to{top:-34px}}@keyframes pl2{50%{transform:scale(1.12);opacity:.85}}
+#x{position:fixed;box-shadow:0 0 18px #7b2fff;top:6%;right:6%;z-index:9;display:none;background:#d4af37;color:#000;border:0;font-size:22px;width:38px;height:38px;border-radius:50%;cursor:pointer}
 #boot{position:fixed;inset:0;background:#000;z-index:20;display:none;align-items:center;justify-content:center;font-size:12vw;color:#fff;letter-spacing:4vw}
 #msg{position:fixed;inset:0;background:#000d;z-index:30;display:none;align-items:center;justify-content:center;font-size:4vw;text-align:center;color:#d4af37}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1a0f2e;border:1px solid #d4af37;padding:10px 18px;border-radius:8px;z-index:40;display:none}
@@ -13,14 +14,14 @@
 .hl{animation:pl 1s infinite;outline:3px solid #fff}@keyframes pl{50%{box-shadow:0 0 30px 8px #7b2fff}}
 #ring,#call{position:fixed;z-index:15;display:none;background:#120a1e;border:2px solid #d4af37;border-radius:12px;padding:14px;box-shadow:0 0 30px #7b2fff}
 #ring{top:14px;right:14px;text-align:center}#call{inset:8% 22%;overflow:auto;flex-direction:column}
-button{background:#2a1450;color:#f3e3b0;border:1px solid #d4af37;border-radius:6px;padding:6px 12px;cursor:pointer}button:hover{background:#4b2490}button:active{transform:scale(.96)}
-.g{background:#1c8a3a}.r{background:#a01c1c}input,select{background:#1a1026;color:#f3e3b0;border:1px solid #6b4fb0;padding:6px;border-radius:5px}
+button{font:700 14px 'Segoe UI',Tahoma,sans-serif;background:linear-gradient(180deg,#ffe08a 0,#d4af37 48%,#a67c12 100%);color:#1b1300;border:1px solid #6b4d08;border-radius:999px;padding:8px 18px;cursor:pointer;box-shadow:inset 0 1px 0 #fff8,0 3px 0 #5a4005,0 6px 14px #7b2fff55;transition:.12s;letter-spacing:.3px}button:hover{filter:brightness(1.12);box-shadow:inset 0 1px 0 #fff8,0 3px 0 #5a4005,0 0 22px #b57bff}button:active{transform:translateY(3px);box-shadow:inset 0 1px 0 #fff8,0 0 0 #5a4005}button:disabled{filter:grayscale(1) brightness(.6);cursor:not-allowed;transform:none}
+.g{background:linear-gradient(#7af596,#1f9b3d 55%,#12702a);color:#fff;border-color:#0b4a1a;box-shadow:inset 0 1px 0 #fff8,0 3px 0 #0b4a1a,0 0 16px #2aff6a55}.r{background:linear-gradient(#ff9a9a,#d32727 55%,#8f1212);color:#fff;border-color:#5e0a0a;box-shadow:inset 0 1px 0 #fff8,0 3px 0 #5e0a0a,0 0 16px #ff2a2a55}.gg{background:#fff;color:#222;border:1px solid #ccc;box-shadow:0 2px 6px #0006;font-size:15px}input,select{background:#1a1026;color:#f3e3b0;border:1px solid #6b4fb0;padding:6px;border-radius:5px}
 .dk{position:relative;min-height:100%;font-size:14px}.ic{display:block;width:84px;text-align:center;margin:10px;cursor:pointer;color:#fff;text-shadow:1px 1px 2px #000}.ic b{font-size:34px;display:block}
 .tb{position:absolute;left:0;right:0;bottom:0;height:38px;background:linear-gradient(#245edb,#1941a5);display:flex;gap:8px;align-items:center;padding:0 6px;color:#fff}
 .st{background:#3c9a3c;border-radius:0 14px 14px 0;font-weight:bold}.menu{position:absolute;left:0;bottom:38px;background:#fff;color:#000;width:200px;display:none;border:2px solid #245edb}
 .menu div{padding:7px;cursor:pointer}.menu div:hover{background:#316ac5;color:#fff}
 .win{position:absolute;left:110px;top:12px;right:20px;bottom:50px;background:#f0efe6;color:#111;border:3px solid #245edb;overflow:auto;padding:10px}
-.win button{color:#111;background:#e8e6d8;border-color:#888}.win input{background:#fff;color:#000}
+.win button{font:12px Tahoma,sans-serif;color:#000;background:linear-gradient(#fff,#ecebe5 85%,#d6d0c5);border:1px solid #003c74;border-radius:3px;padding:3px 14px;box-shadow:none;text-shadow:none;letter-spacing:0}.win button:hover{box-shadow:inset 0 0 0 2px #f8b330;filter:none}.win button:active{transform:none;background:#d6d0c5}.win input{background:#fff;color:#000}
 .bar{height:12px;background:#333;border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#7b2fff,#d4af37)}
 .pt{width:70px;height:70px;border-radius:50%;overflow:hidden;border:2px solid #d4af37;display:inline-block}.pt svg{width:100%;height:100%}
 .talk .mo{animation:tk .18s infinite alternate}@keyframes tk{to{transform:scaleY(2.4)}}.mo{transform-origin:50px 70px}
@@ -28,11 +29,18 @@ button{background:#2a1450;color:#f3e3b0;border:1px solid #d4af37;border-radius:6
 </style></head><body>
 <svg width="0" height="0" style="position:absolute"><filter id="pc"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3"/></filter></svg>
 <canvas id="c"></canvas><div id="pn"></div><button id="x">✕</button>
-<div id="boot">◉ ⊞ ▲</div><div id="msg"></div><div id="toast"></div><div id="tut"></div>
+<div id="boot">◉ ⊞ ▲</div><div id="msg"></div><div id="toast"></div><div id="tut"></div><div id="arrow"></div>
 <div id="ring"></div><div id="call"></div>
+<div id="ld" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;color:#d4af37;font-size:22px;pointer-events:none">Chargement du jeu…</div>
 <script>
-addEventListener('error',function(e){var d=document.createElement('pre');d.style.cssText='position:fixed;top:0;left:0;z-index:99;background:#400;color:#fff;padding:8px;max-width:100%;white-space:pre-wrap;font-size:12px';d.textContent='Erreur : '+e.message+' ('+(e.lineno||'?')+')';document.body.appendChild(d)});
-if(location.protocol==='file:'){var b=document.createElement('div');b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99;background:#a60;color:#fff;padding:10px;text-align:center';b.textContent='Ouvre le jeu via un serveur (ex. python -m http.server, puis http://localhost:8000) : les modules JS sont bloqués en file://';document.body.appendChild(b)}
+function showErr(m){var d=document.createElement('pre');d.style.cssText='position:fixed;top:0;left:0;z-index:99;background:#400;color:#fff;padding:10px;max-width:100%;white-space:pre-wrap;font-size:13px';d.textContent=m;document.body.appendChild(d)}
+addEventListener('error',function(e){showErr('Erreur : '+(e.message||'chargement impossible')+(e.target&&e.target.src?' ('+e.target.src+')':''))},true);
+if(location.protocol==='file:')showErr('Ouvre le jeu via un serveur (python -m http.server puis http://localhost:8000) ou GitHub Pages : les modules JS sont bloqués en file://');
+try{var c=document.createElement('canvas');if(!(c.getContext('webgl2')||c.getContext('webgl')))showErr('WebGL indisponible : active l’accélération matérielle du navigateur.')}catch(e){}
 </script>
-<script type="module" src="app.js"></script>
+<!--APP-->
+<script type="module">
+import('./app.js').then(function(){var l=document.getElementById('ld');if(l)l.remove()}).catch(function(e){showErr('app.js introuvable ou en erreur : '+e.message+'\nVérifie que app.js est bien dans le même dossier que index.html (même nom, en minuscules).')});
+</script>
+<!--/APP-->
 </body></html>
