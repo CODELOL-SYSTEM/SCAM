@@ -30,5 +30,9 @@ button{background:#2a1450;color:#f3e3b0;border:1px solid #d4af37;border-radius:6
 <canvas id="c"></canvas><div id="pn"></div><button id="x">✕</button>
 <div id="boot">◉ ⊞ ▲</div><div id="msg"></div><div id="toast"></div><div id="tut"></div>
 <div id="ring"></div><div id="call"></div>
+<script>
+addEventListener('error',function(e){var d=document.createElement('pre');d.style.cssText='position:fixed;top:0;left:0;z-index:99;background:#400;color:#fff;padding:8px;max-width:100%;white-space:pre-wrap;font-size:12px';d.textContent='Erreur : '+e.message+' ('+(e.lineno||'?')+')';document.body.appendChild(d)});
+if(location.protocol==='file:'){var b=document.createElement('div');b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99;background:#a60;color:#fff;padding:10px;text-align:center';b.textContent='Ouvre le jeu via un serveur (ex. python -m http.server, puis http://localhost:8000) : les modules JS sont bloqués en file://';document.body.appendChild(b)}
+</script>
 <script type="module" src="app.js"></script>
 </body></html>
