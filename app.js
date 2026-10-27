@@ -2,7 +2,7 @@
 // Toutes les données sont fictives : aucun paiement ni donnée bancaire réels.
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 const $=s=>document.querySelector(s),K='pcgame_v1',R=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.random()*a.length|0];
-const DEF={v:1,bal:1000,tut:0,unl:[],own:[],vip:null,hist:[],tx:[],calls:0,scam:{},cl:{},seen:{},bought:[],
+const DEF={v:1,bal:1000,tut:0,unl:[],own:[],vip:null,hist:[],tx:[],calls:0,scam:{},rev:{},notes:'',cl:{},seen:{},bought:[],
  set:{vol:.8,call:.8,sfx:.8,q:1,fx:1,sc:1,voice:1,inc:1},desk:{bg:0,font:0}};
 let S=Object.assign(structuredClone(DEF),JSON.parse(localStorage.getItem(K)||'{}'));
 const PRICE={vip:250000,vipRenew:2500,ultime:500000,legend:75000,epic:20000,rare:6000,cosm:3000};
@@ -15,7 +15,7 @@ function save(now){clearTimeout(st);const go=async()=>{S.hist=S.hist.slice(-40);
 const gain=(a,l)=>{if(vipOn())a*=2;S.bal+=a;S.tx.push({a,l,d:Date.now()});save()};
 const spend=(a,l)=>{if(S.bal<a){toast('Solde insuffisant');return 0}S.bal-=a;S.tx.push({a:-a,l,d:Date.now()});save();return 1};
 const vipOn=()=>S.vip&&S.vip.on;
-function vipTick(){if(!vipOn())return;while(S.vip.next<=Date.now()){if(S.bal>=PRICE.vipRenew){S.bal-=PRICE.vipRenew;S.tx.push({a:-PRICE.vipRenew,l:'Renouvellement VIP',d:S.vip.next});S.vip.next+=3600000}else{S.vip=null;toast('VIP terminé : solde insuffisant');break}}save()}
+function vipTick(){if(!vipOn())return;while(S.vip&&S.vip.next<=Date.now()){save();if(S.bal>=PRICE.vipRenew){S.bal-=PRICE.vipRenew;S.tx.push({a:-PRICE.vipRenew,l:'Renouvellement VIP',d:S.vip.next});S.vip.next+=3600000}else{S.vip=null;toast('VIP terminé : solde insuffisant');break}}}
 // ---------- Audio ----------
 let AC;const beep=(f,d,v=1,type='sine',k='sfx')=>{try{AC=AC||new AudioContext();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.value=.15*v*S.set[k]*S.set.vol;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}};
 const chime=()=>[392,523,659,784].forEach((f,i)=>setTimeout(()=>beep(f,.5),i*220)); // jingle original (le son Windows est protégé)
@@ -49,7 +49,7 @@ const cam=new THREE.PerspectiveCamera(50,1,.1,50);
 const M=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.5,metalness:.4,...o}),box=(w,h,d,m,x,y,z)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);b.castShadow=b.receiveShadow=true;sc.add(b);return b};
 box(9,.15,3,M(0x111111),0,.9,0);box(.15,.9,2.8,M(0xd4af37),-4.3,.45,0);box(.15,.9,2.8,M(0xd4af37),4.3,.45,0);box(14,.1,10,M(0x08050c),0,0,-1);box(14,6,.1,M(0x0c0814),0,3,-3);
 const pl=[0x7b2fff,0xd4af37];[[-3,3,1,0],[3,3,1,0],[0,2,-2.5,0]].forEach(p=>{const l=new THREE.PointLight(0x7b2fff,18,9);l.position.set(p[0],p[1],p[2]);sc.add(l)});
-sc.add(new THREE.AmbientLight(0x221133,.8));const key=new THREE.PointLight(0xd4af37,6,8);key.position.set(0,3.2,2);sc.add(key);
+const amb=new THREE.AmbientLight(0x221133,1.6);sc.add(amb);const room=new THREE.PointLight(0xffe2b0,70,22);room.position.set(0,4.6,3);sc.add(room);const key=new THREE.PointLight(0xd4af37,6,8);key.position.set(0,3.2,2);sc.add(key);
 box(1.6,.05,.55,M(0x1a1a1a),0,1,1.1);box(.3,.08,.45,M(0x222222),1.4,1.02,1.1);
 const tower=box(.9,1.9,1.1,M(0x0d0d0d),3.4,1.9,-.4);const pbtn=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.06,24),M(0xd4af37,{emissive:0x331100}));pbtn.rotation.x=Math.PI/2;pbtn.position.set(3.4,2.5,.18);pbtn.name='power';sc.add(pbtn);
 const hands=[-1,1].map(s=>box(.45,.12,.6,M(0xd9a273,{roughness:.8}),s*.4,1.15,1.6));
@@ -61,11 +61,11 @@ const home={p:new THREE.Vector3(0,2.15,5.2),l:new THREE.Vector3(0,2.2,-.5)};let 
 function size(){const q=[.5,.75,1][S.set.q|0]||1;rd.setPixelRatio(Math.min(devicePixelRatio,2)*q);rd.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();document.body.style.zoom=S.set.sc}
 addEventListener('resize',size);size();
 function go(n){view=n;if(n=='home'){tp.copy(home.p);tl.copy(home.l)}else{const p=scrDef[n];tp.set(p[0],p[1],p[2]+(n=='top'?1.9:1.9));tl.set(p[0],p[1],p[2])}}
-let t0=0;(function loop(t){requestAnimationFrame(loop);cam.position.lerp(tp,.07);cl.lerp(tl,.07);cam.lookAt(cl);const s=Math.sin(t/90)*(typing?1:.1);hands[0].position.y=1.15+Math.max(0,s)*.05*(typing?1:0);hands[1].position.y=1.15+Math.max(0,-s)*.05;hands[1].position.x=1+Math.sin(t/700)*.05;
- pbtn.material.emissive.setHex(tut.s==0&&!ON.v?(Math.sin(t/150)>0?0xffffff:0x333300):ON.v?0x00aa55:0x331100);key.intensity=6*S.set.fx;rd.render(sc,cam)})(0);
-let typing=0;addEventListener('keydown',()=>{typing=1;clearTimeout(typing.t);typing.t=setTimeout(()=>typing=0,400)});
+let t0=0;function loop(t){requestAnimationFrame(loop);cam.position.lerp(tp,.07);cl.lerp(tl,.07);cam.lookAt(cl);const s=Math.sin(t/90)*(typing?1:.1);hands[0].position.y=1.15+Math.max(0,s)*.05*(typing?1:0);hands[1].position.y=1.15+Math.max(0,-s)*.05;hands[1].position.x=1+Math.sin(t/700)*.05;
+ pbtn.material.emissive.setHex(tut.s==0&&!ON.v?(Math.sin(t/150)>0?0xffffff:0x333300):ON.v?0x00aa55:0x331100);key.intensity=6*S.set.fx;room.intensity+=((ON.v?0:70)-room.intensity)*.04;amb.intensity+=((ON.v?.3:1.6)-amb.intensity)*.04;rd.render(sc,cam)}
+let typing=0,typT=0;addEventListener('keydown',()=>{typing=1;clearTimeout(typT);typT=setTimeout(()=>typing=0,400)});
 // ---------- Tutoriel ----------
-const TS=[['power','Clique sur le bouton d’alimentation doré du boîtier (à droite).'],['left','Clique sur l’écran GAUCHE pour le zoomer.'],['start','Clique sur COMMENCER.'],['phone','Ouvre l’application Téléphone : c’est là que tu passes les appels. Gagne la confiance (jauge) pour débloquer des personnages → BOL, récompenses → Ma Banque / MAMAZON. VIP x2, sauvegardes : ENREGISTRER.'],['call','Appelle un contact (bouton Appeler) ou réponds à un appel entrant.'],['end','Discute poliment puis raccroche (ou gagne la confiance à 85 %).']];
+const TS=[['power','Clique sur le bouton d’alimentation doré du boîtier (à droite).'],['left','Clique sur l’écran GAUCHE pour le zoomer.'],['start','Clique sur COMMENCER.'],['phone','Ouvre l’application Téléphone : tu y appelles des personnages. Gagne leur confiance (jauge), demande-leur leur carte, note-la puis saisis-la dans SCAM pour recevoir leur solde. Ma Banque, MAMAZON, VIP x2, sauvegardes : ENREGISTRER.'],['call','Appelle un contact (bouton Appeler) ou réponds à un appel entrant.'],['end','Discute poliment, mets-le en confiance, demande sa carte (jauge assez haute) puis raccroche.']];
 const tut={s:S.tut?-1:0};
 function tShow(){const e=$('#tut');if(tut.s<0){e.style.display='none';return}e.style.display='block';e.textContent=`Tutoriel ${tut.s+1}/${TS.length} — ${TS[tut.s][1]}`}
 const ok=n=>tut.s<0||TS[tut.s][0]==n||n=='x'||(!$('#tut')?1:0)||(toast('Suis le tutoriel : action non autorisée pour l’instant'),0);
@@ -97,8 +97,8 @@ const SB=(l,v)=>`<div class="row"><b>${l}</b>${v}</div>`;
 const APP={
 phone(){const l=CH.filter(avail);return`<button data-a="tab:c">Contacts</button> <button data-a="tab:h">Historique</button> <label><input type="checkbox" data-a="inc" ${S.set.inc?'checked':''}> Appels entrants</label>
  ${phoneTab=='h'?(S.hist.slice().reverse().map(h=>`<div class="row">${CH[h.i].n} — ${h.r} — ${new Date(h.d).toLocaleTimeString('fr-FR')}</div>`).join('')||'<p>Aucun appel.</p>'):l.slice(0,60).map(c=>`<div class="row"><span class="pt">${face(c)}</span><span>${c.n}<br><small>${TD[c.ty].nm}</small></span><button data-a="dial:${c.i}">Appeler</button></div>`).join('')}`},
-bol(){return S.unl.length?S.unl.map(i=>{const c=CH[i];return`<div class="row"><span class="pt">${face(c)}</span><div><b>${c.n}</b> — ${S.scam[i]?'Dossier validé':'Débloqué'}<br><small>${c.story}<br>Dossier fictif : ${code(i)} · Type DEMO · statut ${['actif','en attente','archivé'][i%3]}</small></div></div>`}).join(''):'<p>Aucun personnage débloqué. Réussis un appel (confiance ≥ 85 %).</p>'},
-scam(){return`<p>Saisis l’identifiant de dossier DEMO d’un personnage débloqué (visible dans BOL). Données fictives uniquement.</p><input id="sc" placeholder="DEMO-001-1234"> <button data-a="val">Valider</button><div id="sres"></div>`},
+bol(){return S.unl.length?S.unl.map(i=>{const c=CH[i];return`<div class="row"><span class="pt">${face(c)}</span><div><b>${c.n}</b> — ${S.scam[i]?'Dossier validé':'Débloqué'}<br><small>${c.story}<br>Carte fictive : ${card(i).n} · exp ${card(i).exp} · CVV ${card(i).cvv} · solde ${card(i).bal} ₢ · statut ${['actif','en attente','archivé'][i%3]}</small></div></div>`}).join(''):'<p>Aucun personnage débloqué. Obtiens une carte au téléphone et valide-la dans SCAM.</p>'},
+scam(){return`<p>Saisis la carte obtenue au téléphone (données FICTIVES générées par le jeu : n’entre jamais une vraie carte !).</p><p><input id="sm" placeholder="NOM SUR LA CARTE" style="width:60%"><br><input id="sn" placeholder="0000 0000 0000 0000"> <input id="se" placeholder="MM/AA" size="6"> <input id="sv" placeholder="CVV" size="4"></p><button data-a="val">Valider</button><div id="sres"></div><h4>Bloc-notes</h4><textarea id="nt" data-n="1" rows="5" style="width:95%">${S.notes||''}</textarea>`},
 bank(){return`<h3>Solde : ${S.bal.toLocaleString('fr-FR')} ₢</h3>${S.tx.slice().reverse().map(t=>`<div class="row"><span style="color:${t.a>0?'green':'#a00'}">${t.a>0?'+':''}${t.a}</span> ${t.l} <small>${new Date(t.d).toLocaleTimeString('fr-FR')}</small></div>`).join('')||'<p>Aucune transaction.</p>'}`},
 shop(){const it=[['vip','VIP x2 (gains doublés, renouvelé /60 min)',PRICE.vip,'légendaire'],['ultime','Installation ultime (cosmétique PC)',PRICE.ultime,'légendaire'],['cosm','Fond d’écran Nuit & police Georgia',PRICE.cosm,'rare']];
  return`<h3>Solde : ${S.bal} ₢</h3>${it.map(a=>`<div class="row"><div><b>${a[1]}</b><br><small>${a[3]}</small></div><span style="margin-left:auto">${a[2]} ₢</span><button data-a="buy:${a[0]}" ${S.bought.includes(a[0])||(a[0]=='vip'&&vipOn())?'disabled':''}>Acheter</button></div>`).join('')}<h4>Personnages premium</h4>${CH.filter(c=>c.prem).map(c=>{const p=prc(c);return`<div class="row"><span class="pt" style="width:44px;height:44px">${face(c)}</span><div>${c.n} <small>${c.rar}</small></div><span style="margin-left:auto">${p} ₢</span><button data-a="buy:c${c.i}" ${S.own.includes(c.i)?'disabled':''}>${S.own.includes(c.i)?'Possédé':'Acheter'}</button></div>`}).join('')}`},
@@ -112,13 +112,13 @@ function loginUI(){return`<div class="cen"><h2>Connexion (facultative)</h2><p id
  <button data-a="g">Connexion Google</button><p><input id="em" type="email" placeholder="e-mail"> <input id="pw" type="password" placeholder="mot de passe (6+)"></p><button data-a="li">Se connecter</button> <button data-a="su">S’inscrire</button> <button data-a="lo">Déconnexion</button> <button data-a="x2">Continuer sans compte</button><p id="err" style="color:#f88"></p></div>`}
 function settingsUI(){const r=(k,l)=>`<p>${l} <input type="range" min="0" max="1" step=".05" value="${S.set[k]}" data-r="${k}"></p>`,c=(k,l)=>`<p><label><input type="checkbox" data-c="${k}" ${S.set[k]?'checked':''}> ${l}</label></p>`;
  return`<div class="cen"><h2>Paramètres</h2>${r('vol','Volume général')}${r('call','Volume des appels')}${r('sfx','Effets sonores')}<p>Qualité graphique <select data-s="q">${['Basse','Moyenne','Haute'].map((o,i)=>`<option value="${i}" ${S.set.q==i?'selected':''}>${o}</option>`).join('')}</select></p><p>Effets visuels <input type="range" min="0" max="1" step=".1" value="${S.set.fx}" data-r="fx"></p><p>Échelle d’affichage <select data-s="sc">${[.8,1,1.2].map(o=>`<option value="${o}" ${S.set.sc==o?'selected':''}>${o*100}%</option>`).join('')}</select></p>${c('voice','Voix des personnages')}${c('inc','Appels entrants')}<button data-a="rt">Refaire le tutoriel</button> <button data-a="wipe">Effacer les données locales</button></div>`}
-pn.addEventListener('input',e=>{const t=e.target;if(t.dataset.r){S.set[t.dataset.r]=+t.value;save()}if(t.id=='sq'){const q=t.value.toLowerCase(),r=APPS.filter(a=>a[1].toLowerCase().includes(q)&&q);$('#sr').innerHTML=r.map(a=>`<u data-a="app:${a[0]}" style="cursor:pointer">${a[1]}</u> `).join('')}});
+pn.addEventListener('input',e=>{const t=e.target;if(t.dataset.n){S.notes=t.value;save()}if(t.dataset.r){S.set[t.dataset.r]=+t.value;save()}if(t.id=='sq'){const q=t.value.toLowerCase(),r=APPS.filter(a=>a[1].toLowerCase().includes(q)&&q);$('#sr').innerHTML=r.map(a=>`<u data-a="app:${a[0]}" style="cursor:pointer">${a[1]}</u> `).join('')}});
 pn.addEventListener('change',e=>{const t=e.target;if(t.dataset.c){S.set[t.dataset.c]=t.checked?1:0;save()}if(t.dataset.s){S.set[t.dataset.s]=+t.value;size();save()}if(t.dataset.a=='inc'){S.set.inc=t.checked?1:0;save()}});
 // ---------- Actions ----------
 const cb={};document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]');if(!el||el.disabled)return;const[a,v]=el.dataset.a.split(':');const re=()=>{render()};
  if(a=='start'){if(!ok('start'))return;started=1;ev('start');re()}
  else if(a=='menu'){menuOpen=!menuOpen;re()}
- else if(a=='app'){if(!ok('phone')||(tut.s>=0&&v!='phone'))return;app=v;menuOpen=0;S.seen[v]=1;if(v=='phone')ev('phone');save();re()}
+ else if(a=='app'){if(tut.s>=0&&v!='phone')return toast('Suis le tutoriel');app=v;menuOpen=0;S.seen[v]=1;if(v=='phone')ev('phone');save();re()}
  else if(a=='close'){app=null;re()}else if(a=='tab'){phoneTab=v;re()}
  else if(a=='off'){if(tut.s>=0)return toast('Termine le tutoriel d’abord');shutdown()}
  else if(a=='dial'){if(call)return;startCall(+v)}
@@ -126,7 +126,8 @@ const cb={};document.addEventListener('click',async e=>{const el=e.target.closes
  else if(a=='buy')buy(v)
  else if(a=='cancel'){S.vip.on=0;S.vip=null;app=null;toast('Abonnement annulé');save();re()}
  else if(a=='qc'){const q=QU.find(x=>x.id==v);if(q.c()&&!S.cl[v]){S.cl[v]=1;gain(q.r,'Quête : '+q.t);re()}}
- else if(a=='val'){const t=$('#sc').value.trim().toUpperCase(),i=S.unl.find(i=>code(i)==t);if(i!=null&&!S.scam[i]){S.scam[i]=1;gain(3000,'Dossier validé '+t);$('#sres').textContent='Validé ! +'+(vipOn()?6000:3000)+' ₢'}else $('#sres').textContent=i!=null?'Déjà validé.':'Carte fausse';}
+ else if(a=='val'){const g=id=>($(id).value||'').replace(/\s+/g,'').toUpperCase(),n=g('#sn'),nm=($('#sm').value||'').trim().toUpperCase(),ex=g('#se'),cv=g('#sv'),r=$('#sres');const i=CH.findIndex(c=>{const k=card(c.i);return k.n.replace(/\s/g,'')==n&&k.name==nm&&k.exp==ex&&k.cvv==cv});
+ if(i<0||!S.rev[i])r.textContent='Carte fausse';else if(S.scam[i])r.textContent='Carte déjà utilisée.';else{S.scam[i]=1;if(!S.unl.includes(i))S.unl.push(i);const b=card(i).bal;gain(b,'Solde récupéré : '+CH[i].n);r.textContent='Carte valide ! Solde récupéré : +'+b*(vipOn()?2:1)+' ₢'}}
  else if(a=='dosave'){const s=$('#svs');s.textContent='Sauvegardement de la progression…';await new Promise(r=>setTimeout(r,3000));const r=await save(1);s.textContent=r?'Sauvegarde réussie ✔':'Erreur de sauvegarde'}
  else if(a=='rt'){S.tut=0;tut.s=0;tShow();save();toast('Tutoriel relancé : éteins puis rallume le PC.')}
  else if(a=='wipe'){if(confirm('Effacer la sauvegarde locale ?')){localStorage.removeItem(K);location.reload()}}
@@ -140,14 +141,14 @@ const ring=$('#ring'),cd=$('#call');
 function incoming(i){if(call||ringT)return;const c=CH[i];ringT=setInterval(()=>beep(880,.2,1,'square','call'),700);ring.style.display='block';ring.innerHTML=`<div class="pt">${face(c)}</div><p><b>${c.n}</b> vous appelle…</p><button class="g" data-a="ans">Répondre</button> <button class="r" data-a="ref">Refuser</button>`;ring.dataset.i=i;ring.to=setTimeout(()=>{if(ringT){hang('manqué',1)}},12000)}
 function stopRing(){clearInterval(ringT);ringT=null;clearTimeout(ring.to);ring.style.display='none'}
 function answer(){const i=+ring.dataset.i;stopRing();startCall(i)}
-function startCall(i){if(!ok('call')&&tut.s>=0&&TS[tut.s][0]!='phone'&&TS[tut.s][0]!='end')return;call={c:CH[i],raw:50,said:[],n:0};ev('call');cd.style.display='flex';cd.innerHTML=`<div style="text-align:center"><div class="pt" id="cp" style="width:110px;height:110px">${face(call.c)}</div><h3>${call.c.n}</h3><div class="bar"><i id="tb" style="width:50%"></i></div><small id="tp">Confiance 50 %</small></div><div id="lg" style="flex:1;overflow:auto;margin:8px 0;border:1px solid #6b4fb0;padding:8px"></div><div><input id="ti" style="width:55%" placeholder="Ton message…"> <button data-a="snd">Envoyer</button> <button data-a="mic">🎤</button> <button class="r" data-a="hup">Raccrocher</button></div>`;$('#ti').onkeydown=e=>{if(e.key=='Enter')send()};say(pick(TD[call.c.ty].op))}
+function startCall(i){if(tut.s>=0&&TS[tut.s][0]!='call'&&TS[tut.s][0]!='end')return toast('Suis le tutoriel');call={c:CH[i],raw:50,said:[],n:0};ev('call');cd.style.display='flex';cd.innerHTML=`<div style="text-align:center"><div class="pt" id="cp" style="width:110px;height:110px">${face(call.c)}</div><h3>${call.c.n}</h3><div class="bar"><i id="tb" style="width:50%"></i></div><small id="tp">Confiance 50 %</small></div><div id="lg" style="flex:1;overflow:auto;margin:8px 0;border:1px solid #6b4fb0;padding:8px"></div><div><input id="ti" style="width:55%" placeholder="Ton message…"> <button data-a="snd">Envoyer</button> <button data-a="mic">🎤</button> <button class="r" data-a="hup">Raccrocher</button></div>`;$('#ti').onkeydown=e=>{if(e.key=='Enter')send()};say(pick(TD[call.c.ty].op))}
 function say(t){const l=$('#lg');l.innerHTML+=`<p><b>${call.c.n} :</b> ${t}</p>`;l.scrollTop=1e5;const p=$('#cp');p.classList.add('talk');setTimeout(()=>p.classList.remove('talk'),Math.min(4000,t.length*70));speak(t)}
-function send(){const i=$('#ti');if(!call||!i.value.trim())return;const t=i.value.trim();i.value='';$('#lg').innerHTML+=`<p style="color:#9cf"><b>Toi :</b> ${t}</p>`;const cat=analyse(call,t),tr=Math.max(0,Math.min(100,call.raw));$('#tb').style.width=tr+'%';$('#tp').textContent='Confiance '+Math.round(tr)+' %';call.n++;
+function send(){const i=$('#ti');if(!call||!i.value.trim())return;const t=i.value.trim();i.value='';$('#lg').innerHTML+=`<p style="color:#9cf"><b>Toi :</b> ${t}</p>`;const cat=analyse(call,t),ask=CI.test(t)?askCard():null,tr=Math.max(0,Math.min(100,call.raw));$('#tb').style.width=tr+'%';$('#tp').textContent='Confiance '+Math.round(tr)+' %';call.n++;
  if(call.raw<=-5){$('#cp').classList.remove('talk');beep(150,.6,1,'sawtooth');const m=$('#msg');m.style.display='flex';m.textContent='IL T’A RACCROCHÉ AU NEZ !';setTimeout(()=>m.style.display='none',1800);return end('raccroché au nez')}
- if(call.raw>=85)return end('réussi');say(pick(TD[call.c.ty][cat]))}
+ say(ask||pick(TD[call.c.ty][cat]))}
 function mic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return toast('Reconnaissance vocale indisponible : utilise le clavier');const r=new SR();r.lang='fr-FR';r.onresult=e=>{$('#ti').value=e.results[0][0].transcript;send()};r.onerror=()=>toast('Micro refusé');r.start()}
 function hang(r,inc){if(inc&&ringT){const i=+ring.dataset.i;stopRing();S.hist.push({i,r,d:Date.now()});redial[i]=(redial[i]||0)+1;if(redial[i]<=3&&r=='refusé')setTimeout(()=>{if(S.set.inc)incoming(i)},R(4000,9000));save();next=Date.now()+R(3000,7000);return}end(r)}
-function end(r){const c=call.c;call.c&&(speechSynthesis&&speechSynthesis.cancel());S.hist.push({i:c.i,r,d:Date.now()});S.calls++;if(r=='réussi'){if(!S.unl.includes(c.i)){S.unl.push(c.i);gain(500*c.dif,'Appel réussi : '+c.n);toast(c.n+' ajouté à BOL !')}else toast('Appel réussi (déjà débloqué)')}
+function end(r){const c=call.c;if(window.speechSynthesis)speechSynthesis.cancel();S.hist.push({i:c.i,r,d:Date.now()});S.calls++;if(r=='réussi'){if(!S.unl.includes(c.i)){S.unl.push(c.i);gain(500*c.dif,'Appel réussi : '+c.n);toast(c.n+' ajouté à BOL !')}else toast('Appel réussi (déjà débloqué)')}
  call=null;cd.innerHTML='<h2 style="text-align:center">Fin d’appel…</h2>';beep(300,.3);setTimeout(()=>{cd.style.display='none';if(pn.dataset.n=='left'&&app=='phone')render()},1100);next=Date.now()+R(3000,7000);save();ev('end')}
 setInterval(()=>{vipTick();if(ON.v&&S.set.inc&&!call&&!ringT&&Date.now()>next&&tut.s<0){const l=CH.filter(avail);incoming(pick(l).i);next=Date.now()+R(25000,45000)}if(pn.dataset.n=='left'&&started&&!app&&pn.style.display=='block'){const t=pn.querySelector('.tb span:last-child');if(t)t.textContent=clk()}},1000);
 // ---------- Firebase (facultatif) ----------
@@ -159,3 +160,20 @@ const EM={'auth/invalid-credential':'E-mail ou mot de passe incorrect.','auth/em
 async function auth(a){const f=await FB();if(!f)return;try{const em=($('#em')||{}).value,pw=($('#pw')||{}).value;if(a=='g')await f.Au.signInWithPopup(f.auth,new f.Au.GoogleAuthProvider());else if(a=='li')await f.Au.signInWithEmailAndPassword(f.auth,em,pw);else if(a=='su')await f.Au.createUserWithEmailAndPassword(f.auth,em,pw);else{await f.Au.signOut(f.auth);toast('Déconnecté (sauvegarde locale conservée)')}}catch(e){err(EM[e.code]||e.message)}}
 async function onUser(u){uid=u?u.uid:null;const w=$('#who');if(w)w.textContent=u?'Connecté : '+(u.email||u.displayName):'Mode local.';if(!u)return;try{const s=await fb.Db.get(fb.Db.ref(fb.db,`users/${uid}/save`));if(s.exists()){const c=s.val();if(c.u!==S.u&&confirm('Une sauvegarde en ligne existe.\nOK = charger la sauvegarde en ligne\nAnnuler = garder la locale et l’envoyer en ligne')){S=Object.assign(structuredClone(DEF),c);localStorage.setItem(K,JSON.stringify(S));toast('Sauvegarde en ligne chargée')}else save(1)}else save(1)}catch(e){toast('Erreur base de données (règles publiées ?) : '+e.message)}}
 if(S.u)FB(); // restaure la session si le joueur s’était déjà connecté
+
+// ---------- Réponses supplémentaires par type de caractère ----------
+const MORE={naif:{pos:['Oh vraiment ? Quelle bonne idée !','Je vous fais confiance, vous avez l’air sincère.'],neg:['Oh là là, vous me faites un peu peur…'],neu:['Si vous le dites… je n’y connais pas grand-chose.']},
+meff:{pos:['C’est ce que disent tous les beaux parleurs.','On verra si vos actes suivent vos mots.'],neg:['Ça y est, je note votre numéro.'],neu:['Je vérifie tout ce que l’on me dit.']},
+bav:{pos:['Ah, vous au moins vous savez écouter ! Ma sœur, elle…','Tiens, ça me fait penser à mes vacances à la mer !'],neg:['Oh, vous êtes bien pressé, vous !'],neu:['Je disais quoi déjà ? Ah oui, mon chat…']},
+grin:{pos:['Hm. Un peu de politesse, ça change.','Bon, je vous donne deux minutes.'],neg:['Vous m’avez fait perdre mon temps.'],neu:['Abrégez, je regarde la télé.']},
+poli:{pos:['Je vous remercie sincèrement.','Voilà une conversation agréable.'],neg:['Je vous prie de rester correct.'],neu:['Je vous écoute avec attention.']}};
+for(const t in MORE)for(const k in MORE[t])TD[t][k].push(...MORE[t][k]);
+// ---------- Cartes FICTIVES générées par le jeu (préfixe 0000, jamais de vraie carte) ----------
+const sd=(i,m)=>(i*7919+m*104729+1234)%9973;
+const card=i=>({n:'0000 '+[1,2,3].map(m=>String(1000+sd(i,m)%9000)).join(' '),cvv:String(100+sd(i,4)%900),exp:String(1+sd(i,5)%12).padStart(2,'0')+'/'+(27+sd(i,6)%5),name:CH[i].n.toUpperCase(),bal:5000+sd(i,7)%95*1000});
+const CI=/\b(carte|cvv|numéro|numero|bancaire|cryptogramme|solde|iban|banque)\b/i;
+// Le bot ne donne sa carte que si la confiance dépasse un seuil (selon son caractère et sa difficulté)
+function askCard(){const c=call.c,th={naif:50,meff:80,bav:60,grin:70,poli:65}[c.ty]+(c.dif-3)*3;
+ if(call.raw>=th){const k=card(c.i);S.rev[c.i]=1;save();return`D’accord, je vous la donne. Nom : ${k.name}. Numéro : ${k.n}. Expiration : ${k.exp}. Cryptogramme : ${k.cvv}.`}
+ call.raw-=10;return pick(['Pourquoi voulez-vous ça ? Je ne vous fais pas assez confiance.','Je ne donne pas ça à n’importe qui.','Hors de question, je ne vous connais pas.'])}
+requestAnimationFrame(loop); // démarre la boucle 3D une fois tout initialisé
