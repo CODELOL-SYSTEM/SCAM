@@ -1,4 +1,4 @@
-// JEU PC IMMERSIF — FICHIER UNIQUE (fusion app_base + app v3).
+// JEU PC IMMERSIF — FICHIER UNIQUE (fusion app_base + app v3) + DUO EN LIGNE.
 // UN SEUL PC / UN SEUL ÉCRAN : toutes les applis (Téléphone, BOL, SCAM, Ma Banque, MAMAZON, Connexion, Paramètres…) sont DANS le PC.
 // Moteur de dialogue À RÈGLES (mots-clés), pas une IA conversationnelle.
 // Toutes les données sont fictives : aucun paiement ni donnée bancaire réels.
@@ -559,7 +559,8 @@ async function auth(a){const f=await FB();if(!f)return;const em=($('#em')||{}).v
   else if(a=='su')await f.Au.createUserWithEmailAndPassword(f.auth,em,pw);
   else{await f.Au.signOut(f.auth);toast('Déconnecté (sauvegarde locale conservée)')}}
  catch(e){err((EM[e.code]||e.message)+(EM[e.code]?'':' ['+e.code+']'))}}
-async function onUser(u){uid=u?u.uid:null;if(u)toast('Connecté : '+(u.email||u.displayName||'Google'));const w=$('#who');if(w)w.textContent=u?'Connecté : '+(u.email||u.displayName):'Mode local.';if(!u)return;try{const s=await fb.Db.get(fb.Db.ref(fb.db,`users/${uid}/save`));if(s.exists()){const c=s.val();if(c.u!==S.u&&confirm('Une sauvegarde en ligne existe.\nOK = charger la sauvegarde en ligne\nAnnuler = garder la locale et l’envoyer en ligne')){S=Object.assign(structuredClone(DEF),c);mig();refreshPC();localStorage.setItem(K,JSON.stringify(S));toast('Sauvegarde en ligne chargée')}else save(1)}else save(1)}catch(e){toast('Erreur base de données (règles publiées ?) : '+e.message)}}
+// (modifié pour le duo : les joueurs anonymes ne déclenchent ni message « Connecté » ni sauvegarde en ligne)
+async function onUser(u){uid=u?u.uid:null;if(u&&!u.isAnonymous)toast('Connecté : '+(u.email||u.displayName||'Google'));const w=$('#who');if(w)w.textContent=u?'Connecté : '+(u.email||u.displayName):'Mode local.';if(!u||u.isAnonymous)return;try{const s=await fb.Db.get(fb.Db.ref(fb.db,`users/${uid}/save`));if(s.exists()){const c=s.val();if(c.u!==S.u&&confirm('Une sauvegarde en ligne existe.\nOK = charger la sauvegarde en ligne\nAnnuler = garder la locale et l’envoyer en ligne')){S=Object.assign(structuredClone(DEF),c);mig();refreshPC();localStorage.setItem(K,JSON.stringify(S));toast('Sauvegarde en ligne chargée')}else save(1)}else save(1)}catch(e){toast('Erreur base de données (règles publiées ?) : '+e.message)}}
 FB(1); // restaure la session / résultat de redirection Google
 
 // ---------- Réponses supplémentaires par type de caractère ----------
@@ -583,8 +584,7 @@ function askCard(){const c=call.c,th={naif:68,meff:88,bav:75,grin:82,poli:78}[c.
  if(!(call.pre||0))return pick(['Pourquoi auriez-vous besoin de ça ?','Et pour quelle raison, exactement ?']);
  return pick(['Je ne vous fais pas encore assez confiance.','Non, je préfère ne pas donner ça.','Hors de question pour l’instant.'])}
 // =====================================================================
-// AJOUT v5 — à coller dans app.js, JUSTE AVANT la ligne « // ---------- Démarrage : bloom »
-// Dialogues variés + méthodes (banque, colis…) + Windows réaliste + icônes déplaçables + Détente (8 mini-jeux)
+// AJOUT v5 — Dialogues variés + méthodes (banque, colis…) + Windows réaliste + icônes déplaçables + Détente (8 mini-jeux)
 // Tout est fictif : aucune vraie donnée bancaire, et le Guide rappelle les signaux d’alerte des vraies arnaques.
 // =====================================================================
 const dpos=()=>(S.desk.pos=S.desk.pos||{}),hs=()=>(S.hs=S.hs||{});
@@ -772,6 +772,85 @@ document.addEventListener('click',e=>{const t=e.target;if(!t.closest)return;if(w
  else if(a=='gm'){GM.cur=v=='menu'?null:v;render()}
  else if(a=='gk'){if(GM.G)GM.G.key(v);el.blur()}
  else if(a=='calc'){calcKey(v)}
- else if(a=='arr'){S.desk.pos={};winPos={l:.2,t:.04,w:.77,h:.83};save();render()}},true);// ---------- Démarrage : bloom (lueur) puis boucle 3D ----------
+ else if(a=='arr'){S.desk.pos={};winPos={l:.2,t:.04,w:.77,h:.83};save();render()}},true);
+// =====================================================================
+// ---------- 5) DUO EN LIGNE : salle à code (Firebase Realtime Database) ----------
+// A) Jeux à deux à tour de rôle : Morpion, Puissance 4, Pierre-Feuille-Ciseaux, Devine le nombre
+// B) Duels de score avec tes jeux : Tetris, Block Blast, 2048, Snake, Memory, Casse-briques
+// Créer une salle = code à 4 caractères ; REJOINDRE = taper ce code (barre bleue en haut de Détente).
+// =====================================================================
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DUO={code:'',me:0,data:null,off:null,err:'',rw:0,first:0,playing:0};
+const CODECH='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const dstat=(st,me)=>st.w?(st.w==3?'🤝 Égalité':st.w==me?'🎉 Tu as gagné !':'😵 Tu as perdu…'):st.t==me?'👉 À toi de jouer':'⏳ Tour de l’adversaire';
+const LN=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+const p4win=b=>{for(let r=0;r<6;r++)for(let c=0;c<7;c++){const v=b[r*7+c];if(v=='0')continue;for(const[dr,dc]of[[0,1],[1,0],[1,1],[1,-1]]){let k=1;while(k<4){const r2=r+dr*k,c2=c+dc*k;if(r2<0||r2>5||c2<0||c2>6||b[r2*7+c2]!=v)break;k++}if(k==4)return+v}}return 0};
+const PE={P:'🪨',F:'📄',C:'✂️'};
+const DG={
+ morpion:{n:'Morpion',e:'⭕',init:()=>({b:'000000000',t:1,w:0}),done:s=>s.w>0,stat:dstat,
+  act(st,me,i){i=+i;if(st.w||st.t!=me||!(i>=0&&i<9)||st.b[i]!='0')return null;const b=st.b.slice(0,i)+me+st.b.slice(i+1),win=LN.some(l=>l.every(k=>b[k]==me));return{b,t:3-me,w:win?me:b.includes('0')?0:3}},
+  v:(st,me)=>`<div style="display:grid;grid-template-columns:repeat(3,72px);gap:4px;justify-content:center">${[...st.b].map((c,i)=>`<button data-a="duo:move:${i}" style="height:72px;font-size:36px;font-weight:bold;color:${c==1?'#1f6feb':'#d1242f'}" ${c!='0'||st.w||st.t!=me?'disabled':''}>${c==1?'X':c==2?'O':''}</button>`).join('')}</div>`},
+ p4:{n:'Puissance 4',e:'🔴',init:()=>({b:'0'.repeat(42),t:1,w:0}),done:s=>s.w>0,stat:dstat,
+  act(st,me,c){c=+c;if(st.w||st.t!=me||!(c>=0&&c<7))return null;let r=5;while(r>=0&&st.b[r*7+c]!='0')r--;if(r<0)return null;const i=r*7+c,b=st.b.slice(0,i)+me+st.b.slice(i+1),w=p4win(b);return{b,t:3-me,w:w||(b.includes('0')?0:3)}},
+  v:(st,me)=>{const col=['','#e03131','#f2c200'];let h='<div style="display:inline-block;background:#2a5bd7;padding:8px;border-radius:10px"><div style="display:grid;grid-template-columns:repeat(7,40px);gap:4px">';for(let c=0;c<7;c++)h+=`<button data-a="duo:move:${c}" ${st.w||st.t!=me?'disabled':''} style="padding:0;height:24px">▼</button>`;for(let i=0;i<42;i++)h+=`<div style="width:40px;height:40px;border-radius:50%;background:${st.b[i]=='0'?'#fff':col[st.b[i]]}"></div>`;return h+'</div></div>'}},
+ pfc:{n:'Pierre-Feuille-Ciseaux',e:'✂️',init:()=>({m1:'-',m2:'-',s1:0,s2:0,lr:'-',w:0}),done:s=>s.w>0,
+  stat:(st,me)=>st.w?dstat(st,me):st['m'+me]!='-'?'⏳ En attente de l’adversaire…':'👉 Fais ton choix (premier à 3)',
+  act(st,me,a){if(st.w||!'PFC'.includes(a)||a.length!=1||st['m'+me]!='-')return null;const s={...st};s['m'+me]=a;
+   if(s.m1!='-'&&s.m2!='-'){const B={P:'C',F:'P',C:'F'};let r=0;if(s.m1!=s.m2)r=B[s.m1]==s.m2?1:2;if(r==1)s.s1++;if(r==2)s.s2++;s.lr=s.m1+s.m2+r;s.m1=s.m2='-';s.w=s.s1>=3?1:s.s2>=3?2:0}return s},
+  v:(st,me)=>`<p style="font-size:22px">J1 <b>${st.s1}</b> – <b>${st.s2}</b> J2</p>${st.lr!='-'?`<p>Dernière manche : ${PE[st.lr[0]]} contre ${PE[st.lr[1]]} → ${st.lr[2]=='0'?'égalité':'J'+st.lr[2]+' gagne'}</p>`:''}${['P','F','C'].map(k=>`<button data-a="duo:move:${k}" style="font-size:34px;margin:4px" ${st.w||st['m'+me]!='-'?'disabled':''}>${PE[k]}</button>`).join('')}`},
+ guess:{n:'Devine le nombre',e:'🎯',init:()=>({n:(Math.random()*100|0)+1,t:1,w:0,lg:'0'}),done:s=>s.w>0,stat:dstat,
+  act(st,me,g){g=Math.floor(+g);if(st.w||st.t!=me||!(g>=1&&g<=100))return null;const h=g==st.n?'=':g<st.n?'+':'-';return{...st,t:3-me,w:g==st.n?me:0,lg:st.lg.split('|').filter(x=>x.includes(':')).slice(-5).concat(me+':'+g+':'+h).join('|')}},
+  v:(st,me)=>`<p>Un nombre secret entre 1 et 100. À tour de rôle, devinez-le !</p>${st.lg.split('|').filter(x=>x.includes(':')).map(x=>{const p=x.split(':');return`<div>J${+p[0]} a dit <b>${+p[1]}</b> → ${p[2]=='='?'🎯 trouvé !':p[2]=='+'?'⬆️ plus grand':'⬇️ plus petit'}</div>`}).join('')}<p><input id="dg" type="number" min="1" max="100" style="width:80px" ${st.w||st.t!=me?'disabled':''}> <button data-a="duo:guess" ${st.w||st.t!=me?'disabled':''}>Deviner</button></p>`}};
+// Duels de score avec tes jeux : chacun joue sa partie, le meilleur score gagne
+['tetris','blast','g2048','snake','memory','brick'].forEach(k=>{DG['d_'+k]={n:GAMES[k].n+' — duel de score',e:GAMES[k].e,duel:k,
+ init:()=>({s1:-1,s2:-1,w:0}),done:s=>s.w>0,act:()=>null,
+ stat:(st,me)=>st.w?dstat(st,me):st['s'+me]>=0?'⏳ Ton score est envoyé, attente de l’adversaire…':'👉 Lance ta partie : le meilleur score gagne',
+ v:(st,me)=>`<p style="font-size:20px">J1 : <b>${st.s1<0?'…':st.s1}</b> &nbsp;·&nbsp; J2 : <b>${st.s2<0?'…':st.s2}</b></p>${st['s'+me]<0?'<button data-a="duo:play" style="font-size:18px;padding:10px 22px">▶ Lancer ma partie</button>':''}`}});
+const duoName=()=>{const u=fb&&fb.auth.currentUser;return String((u&&(u.displayName||(u.email||'').split('@')[0]))||S.pname||(S.pname='Joueur'+(Math.random()*900+100|0))).slice(0,16)};
+async function duoReady(){const f=await FB();if(!f)throw new Error('Firebase indisponible (internet ? bloqueur de pub ?)');if(!f.auth.currentUser)await f.Au.signInAnonymously(f.auth);return f}
+const duoInfo=()=>{const d=DUO.data,st=d&&d.st;if(!st)return'';return`J1 : <b>${st.s1<0?'en cours…':st.s1}</b> · J2 : <b>${st.s2<0?'en cours…':st.s2}</b>`+(st.w?' — <b>'+dstat(st,DUO.me)+'</b>':'')};
+const duoRefresh=()=>{if(app!='games'||winMin||pn.style.display!='block')return;if(DUO.playing){const e=$('#duoi');if(e)e.innerHTML=duoInfo();return}render()};
+function duoStop(){if(DUO.off){try{DUO.off()}catch(e){}DUO.off=null}DUO.code='';DUO.data=null;DUO.me=0;DUO.playing=0}
+function duoWatch(f,code,me){duoStop();DUO.code=code;DUO.me=me;DUO.first=1;DUO.rw=0;
+ DUO.off=f.Db.onValue(f.Db.ref(f.db,'rooms/'+code),s=>{DUO.data=s.val();
+  if(!DUO.data){duoStop();GM.cur=null;DUO.err='La salle a été fermée.';duoRefresh();return}
+  const st=DUO.data.st,w=st?st.w:0;
+  if(DUO.first){DUO.rw=w>0;DUO.first=0}else{if(w==DUO.me&&!DUO.rw){DUO.rw=1;gain(300,'Victoire duo')}if(!w)DUO.rw=0}
+  if(DUO.playing==2&&st&&st['s'+me]===-1){DUO.playing=0;GM.cur=null}
+  duoRefresh()},e=>{duoStop();DUO.err='Accès refusé (règles Firebase publiées ?) : '+e.message;duoRefresh()});duoRefresh()}
+async function duoCreate(game){try{DUO.err='';const f=await duoReady(),u=f.auth.currentUser;let code,t=0;
+ do{code=Array.from({length:4},()=>CODECH[Math.random()*CODECH.length|0]).join('');t++}while(t<8&&(await f.Db.get(f.Db.ref(f.db,'rooms/'+code))).exists());
+ const r=f.Db.ref(f.db,'rooms/'+code);await f.Db.set(r,{g:game,c:Date.now(),p1:{u:u.uid,n:duoName()},st:DG[game].init()});f.Db.onDisconnect(r).remove();duoWatch(f,code,1)}catch(e){DUO.err='Erreur : '+e.message;render()}}
+// REJOINDRE une salle avec son code à 4 caractères
+async function duoJoin(code){code=(code||'').trim().toUpperCase();try{DUO.err='';if(code.length!=4)throw new Error('Le code fait 4 caractères.');const f=await duoReady(),u=f.auth.currentUser,s=await f.Db.get(f.Db.ref(f.db,'rooms/'+code));if(!s.exists())throw new Error('Salle introuvable.');const d=s.val();let me=0;
+ if(d.p1&&d.p1.u==u.uid)me=1;else if(d.p2&&d.p2.u==u.uid)me=2;
+ else{const pr=f.Db.ref(f.db,'rooms/'+code+'/p2'),t=await f.Db.runTransaction(pr,cur=>cur?undefined:{u:u.uid,n:duoName()});if(!t.committed)throw new Error('Salle déjà pleine.');me=2;f.Db.onDisconnect(pr).remove();await f.Db.set(f.Db.ref(f.db,'rooms/'+code+'/st'),DG[d.g].init())}
+ duoWatch(f,code,me)}catch(e){DUO.err=e.message;render()}}
+async function duoMove(arg){const d=DUO.data;if(!d||!d.p2||!fb)return;const g=DG[d.g];try{await fb.Db.runTransaction(fb.Db.ref(fb.db,`rooms/${DUO.code}/st`),cur=>{if(!cur)return;return g.act(cur,DUO.me,arg)||undefined})}catch(e){toast('Coup impossible : '+e.message)}}
+async function duoAgain(){const d=DUO.data;if(!d||!fb)return;try{await fb.Db.runTransaction(fb.Db.ref(fb.db,`rooms/${DUO.code}/st`),cur=>cur&&DG[d.g].done(cur)?DG[d.g].init():undefined)}catch(e){}}
+async function duoLeave(){const code=DUO.code,me=DUO.me;duoStop();GM.cur=null;try{if(fb&&code)await fb.Db.remove(fb.Db.ref(fb.db,'rooms/'+code+(me==1?'':'/p2')))}catch(e){}render()}
+// envoi du score (duel) : une seule fois par manche
+async function duoScore(s){if(DUO.playing!=1||!fb||!DUO.code)return;DUO.playing=2;s=Math.max(0,Math.floor(+s||0));const me=DUO.me;
+ try{await fb.Db.runTransaction(fb.Db.ref(fb.db,`rooms/${DUO.code}/st`),cur=>{if(!cur||cur['s'+me]>=0)return;const n={...cur};n['s'+me]=s;if(n.s1>=0&&n.s2>=0)n.w=n.s1>n.s2?1:n.s2>n.s1?2:3;return n});toast('Score envoyé : '+s)}catch(e){toast('Envoi impossible : '+e.message)}}
+// on accroche l'envoi du score à la fin de chaque mini-jeu
+const mount0=GM.mount;GM.mount=function(){mount0.call(GM);if(DUO.playing==1&&GM.G){const e0=GM.G.end;GM.G.end=(s,m)=>{e0(s,m);duoScore(s)}}};
+// barre « Rejoindre » tout en haut de Détente + liste des jeux à créer en bas
+const duoJoinBar=()=>`<div style="background:#eef3ff;border:1px solid #9bb;border-radius:8px;padding:8px;margin-bottom:8px"><b>🌐 Rejoindre un ami</b> : <input id="dcode" maxlength="4" size="5" placeholder="CODE" style="text-transform:uppercase;font-size:18px;letter-spacing:3px"> <button data-a="duo:join">Rejoindre</button><div style="color:#c00">${esc(DUO.err)}</div></div>`;
+const duoLobby=()=>{const L=Object.entries(DG),btn=([k,v])=>`<button data-a="duo:create:${k}" style="width:48%;margin:1%;padding:10px 4px">${v.e}<br>${v.n}<br><small>Créer une salle</small></button>`;
+ return`<hr><h3>🌐 Créer une salle (duo en ligne)</h3><p><small>Tu reçois un code à 4 caractères à donner à ton ami(e). Victoire = +300 ₢.</small></p><b>Jeux à tour de rôle</b><div>${L.filter(a=>!a[1].duel).map(btn).join('')}</div><b>Duels de score (chacun joue sa partie)</b><div>${L.filter(a=>a[1].duel).map(btn).join('')}</div>`};
+function duoRoom(){const d=DUO.data;if(!d)return'<p>Connexion à la salle…</p>';const g=DG[d.g],me=DUO.me,st=d.st||g.init(),wait=!d.p2;
+ if(DUO.playing&&!GM.cur)DUO.playing=0;
+ if(DUO.playing&&GM.cur)return games0()+`<hr><p id="duoi">${duoInfo()}</p><button data-a="duo:abandon">🏳 Terminer ma partie</button> <button data-a="duo:back">◀ Retour à la salle</button>`;
+ return`<div><button data-a="duo:leave">◀ Quitter</button> <b>${g.e} ${g.n}</b> — salle <b style="font-size:22px;letter-spacing:4px">${DUO.code}</b> <button data-a="duo:copy">Copier</button></div><p>J1 : ${esc(d.p1&&d.p1.n)} ${d.p2?'· J2 : '+esc(d.p2.n):'· <i>en attente d’un adversaire… donne-lui le code !</i>'} <small>(tu es J${me})</small></p>${wait?'':`<p><b>${g.stat(st,me)}</b></p><div style="text-align:center">${g.v(st,me)}</div>${g.done(st)?'<p style="text-align:center"><button data-a="duo:again">🔁 Rejouer</button></p>':''}`}`}
+const games0=APP.games;APP.games=()=>DUO.code?duoRoom():GM.cur?games0():duoJoinBar()+games0()+duoLobby();
+document.addEventListener('click',async e=>{const el=e.target.closest&&e.target.closest('[data-a^="duo:"]');if(!el||el.disabled)return;const[,c,v]=el.dataset.a.split(':');
+ if(c=='create')duoCreate(v);else if(c=='join')duoJoin(($('#dcode')||{}).value);else if(c=='move')duoMove(v);else if(c=='guess')duoMove(($('#dg')||{}).value);
+ else if(c=='leave')duoLeave();else if(c=='again')duoAgain();
+ else if(c=='play'){const d=DUO.data;if(d&&DG[d.g]&&DG[d.g].duel){GM.cur=DG[d.g].duel;DUO.playing=1;render()}}
+ else if(c=='abandon'){const m=(($('#gs')||{}).textContent||''),x=/Score (\d+)/.exec(m);duoScore(x?+x[1]:0)}
+ else if(c=='back'){DUO.playing=0;GM.cur=null;render()}
+ else if(c=='copy'){try{await navigator.clipboard.writeText(DUO.code);toast('Code copié')}catch(x){toast('Code : '+DUO.code)}}});
+document.addEventListener('keydown',e=>{if(e.key=='Enter'&&e.target&&e.target.id=='dcode')duoJoin(e.target.value)});
+// ---------- Démarrage : bloom (lueur) puis boucle 3D ----------
 try{const U='https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/';const[pa,pb,pc,pd]=await Promise.all([import(U+'EffectComposer.js'),import(U+'RenderPass.js'),import(U+'UnrealBloomPass.js'),import(U+'OutputPass.js')]);COMP=new pa.EffectComposer(rd);COMP.addPass(new pb.RenderPass(sc,cam));COMP.addPass(new pc.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.38,.55,.88));COMP.addPass(new pd.OutputPass());COMP.setSize(innerWidth,innerHeight)}catch(e){COMP=null;console.warn('Bloom indisponible',e)}
 refreshPC();requestAnimationFrame(loop);
