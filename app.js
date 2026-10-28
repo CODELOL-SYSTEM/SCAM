@@ -854,3 +854,128 @@ document.addEventListener('keydown',e=>{if(e.key=='Enter'&&e.target&&e.target.id
 // ---------- Démarrage : bloom (lueur) puis boucle 3D ----------
 try{const U='https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/';const[pa,pb,pc,pd]=await Promise.all([import(U+'EffectComposer.js'),import(U+'RenderPass.js'),import(U+'UnrealBloomPass.js'),import(U+'OutputPass.js')]);COMP=new pa.EffectComposer(rd);COMP.addPass(new pb.RenderPass(sc,cam));COMP.addPass(new pc.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.38,.55,.88));COMP.addPass(new pd.OutputPass());COMP.setSize(innerWidth,innerHeight)}catch(e){COMP=null;console.warn('Bloom indisponible',e)}
 refreshPC();requestAnimationFrame(loop);
+// =====================================================================
+// PATCH v6 — À COLLER TOUT À LA FIN DE app.js (après "refreshPC();requestAnimationFrame(loop);")
+//  1) Fix Firebase : rejoindre une salle (région de la base, connexion anonyme, 2 onglets, règles)
+//  2) Duo : l'adversaire apparaît à GAUCHE quand tu quittes l'écran, tu lui lances des bouteilles
+//     (infinies, elles réapparaissent), elles se brisent, son écran tremble de partout.
+// =====================================================================
+const dErr=e=>/permission[_ ]denied/i.test((e&&e.message)||'')?'Accès refusé par Firebase : publie les règles (Realtime Database → Règles) données dans le chat.':((e&&e.message)||String(e));
+const duoTab=()=>{try{let k=sessionStorage.getItem('duotab');if(!k){k=Math.random().toString(36).slice(2,10);sessionStorage.setItem('duotab',k)}return k}catch(e){return DUO.k=DUO.k||Math.random().toString(36).slice(2,10)}};
+
+// ---------- 1) FIREBASE ----------
+// Trouve la bonne URL de base (USA / Europe / Asie) : une mauvaise région = erreur au moment de rejoindre
+async function dbPick(f){if(f.dbOk)return;
+ const c=[S.dburl,DB_URL,`https://${cfg.projectId}-default-rtdb.firebaseio.com`,`https://${cfg.projectId}-default-rtdb.europe-west1.firebasedatabase.app`,`https://${cfg.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app`].filter(Boolean);
+ for(const u of c){try{const r=await fetch(u+'/.json?shallow=true',{cache:'no-store'});
+  if([200,401,403].includes(r.status)){const base=r.redirected?new URL(r.url).origin:u;f.db=f.Db.getDatabase(f.auth.app,base);S.dburl=base;f.dbOk=1;return}}catch(e){}}
+ f.dbOk=1}
+duoReady=async function(){const f=await FB();if(!f)throw new Error('Firebase indisponible (internet ? bloqueur de pub ?)');await dbPick(f);
+ if(!f.auth.currentUser){try{await f.Au.signInAnonymously(f.auth)}catch(e){throw new Error(['auth/operation-not-allowed','auth/admin-restricted-operation'].includes(e.code)?'Active la connexion « Anonyme » : Firebase → Authentication → Sign-in method → Anonyme (ou connecte-toi avec Google/e-mail).':(EM[e.code]||e.message))}}
+ return f};
+// les comptes anonymes (duo) ne doivent jamais écrire dans users/…/save
+save=function(now){clearTimeout(st);const go=async()=>{S.hist=S.hist.slice(-40);S.tx=S.tx.slice(-60);S.u=Date.now();
+ try{localStorage.setItem(K,JSON.stringify(S));const cu=fb&&fb.auth.currentUser;if(uid&&fb&&cu&&!cu.isAnonymous)await fb.Db.set(fb.Db.ref(fb.db,`users/${uid}/save`),JSON.parse(JSON.stringify(S)));return 1}catch(e){toast('Échec de sauvegarde : '+e.message);return 0}};
+ if(now)return go();st=setTimeout(go,600)};
+duoCreate=async function(game){try{DUO.err='';const f=await duoReady(),u=f.auth.currentUser;let code,t=0,ex=true;
+ do{code=Array.from({length:4},()=>CODECH[Math.random()*CODECH.length|0]).join('');t++;try{ex=(await f.Db.get(f.Db.ref(f.db,'rooms/'+code))).exists()}catch(e){ex=false}}while(ex&&t<8);
+ const r=f.Db.ref(f.db,'rooms/'+code);await f.Db.set(r,{g:game,c:Date.now(),p1:{u:u.uid,n:duoName(),k:duoTab()},st:DG[game].init()});f.Db.onDisconnect(r).remove();duoWatch(f,code,1)}catch(e){DUO.err=dErr(e);render()}};
+// REJOINDRE : identité par ONGLET (2 onglets du même navigateur = même uid, ça bloquait avant)
+duoJoin=async function(code){code=(code||'').trim().toUpperCase();try{DUO.err='';if(code.length!=4)throw new Error('Le code fait 4 caractères.');
+ const f=await duoReady(),u=f.auth.currentUser,k=duoTab(),s=await f.Db.get(f.Db.ref(f.db,'rooms/'+code));if(!s.exists())throw new Error('Salle introuvable (vérifie le code).');const d=s.val();let me=0;
+ if(d.p1&&d.p1.k==k)me=1;else if(d.p2&&d.p2.k==k)me=2;else if(d.p2)throw new Error('Salle déjà pleine.');
+ else{const pr=f.Db.ref(f.db,'rooms/'+code+'/p2'),n=duoName()+(d.p1&&d.p1.n==duoName()?' (2)':'');await f.Db.set(pr,{u:u.uid,n,k});me=2;f.Db.onDisconnect(pr).remove();try{await f.Db.set(f.Db.ref(f.db,'rooms/'+code+'/st'),DG[d.g].init())}catch(e){}}
+ duoWatch(f,code,me)}catch(e){DUO.err=dErr(e);render()}};
+duoMove=async function(arg){const d=DUO.data;if(!d||!d.p2||!fb)return;const g=DG[d.g];try{await fb.Db.runTransaction(fb.Db.ref(fb.db,`rooms/${DUO.code}/st`),cur=>{const c=cur||d.st;if(!c)return;return g.act(c,DUO.me,arg)||undefined})}catch(e){toast('Coup impossible : '+dErr(e))}};
+
+// ---------- 2) BOUTEILLES ----------
+const BT={on:0,hold:null,cool:0,fly:[],sh:[],spl:[],resp:[],shake:{t:0,d:1,a:0},rs:0,wet:0,dirty:1,name:'',cx:0,cr:[],dr:[],n:0,fxOff:null,seen:new Set()};
+sc.add(cam); // la caméra doit être dans la scène pour porter la bouteille en main
+const btG=new THREE.Group();btG.visible=false;sc.add(btG);
+const btL=new THREE.PointLight(0x9ab8ff,0,8);btL.position.set(-5,2.2,-1.2);sc.add(btL);
+const btL2=new THREE.PointLight(0x66ff99,0,3);sc.add(btL2);
+const btGlass=new THREE.MeshPhysicalMaterial({color:0x2f9e55,roughness:.08,transparent:true,opacity:.8,clearcoat:1,envMapIntensity:1.6}),
+ btGeo={b:new THREE.CylinderGeometry(.07,.07,.3,16),s:new THREE.CylinderGeometry(.028,.07,.1,16),n:new THREE.CylinderGeometry(.028,.028,.14,12),c:new THREE.CylinderGeometry(.033,.033,.03,12),l:new THREE.CylinderGeometry(.0715,.0715,.1,16)},
+ btLab=M(0xf3e3b0,{roughness:.8}),btSh=new THREE.TetrahedronGeometry(.04);
+function btBottle(s=1){const g=new THREE.Group(),a=(geo,m,y)=>{const o=new THREE.Mesh(geo,m);o.position.y=y-.27;g.add(o)};a(btGeo.b,btGlass,.15);a(btGeo.s,btGlass,.35);a(btGeo.n,btGlass,.47);a(btGeo.c,GOLD,.555);a(btGeo.l,btLab,.14);g.scale.setScalar(s);return g}
+// caisse de bouteilles infinies sur TON bureau (J1 à gauche, J2 à droite)
+const btCrate=new THREE.Group();btG.add(btCrate);box(.66,.1,.34,M(0x6b4423,{roughness:.7}),0,.05,0,btCrate);
+const btCB=[-.2,0,.2].map(x=>{const b=btBottle(1.2);b.position.set(x,.1+.27*1.2,0);btCrate.add(b);return b});
+// poste de l'adversaire (à gauche)
+const rv=new THREE.Group();btG.add(rv);rv.position.set(-5.7,0,-2.3);rv.rotation.y=.35;
+const SKN=M(0xd9a273,{roughness:.6}),RW=M(0xffffff,{map:woodTex,roughness:.45}),RJ=M(0x1d2233,{roughness:.9}),RSH=M(0x3a6bd4,{roughness:.9}),RCH=M(0x202028,{roughness:.7});
+box(2.4,.08,1.1,RW,.1,.9,0,rv);[[-1,-.45],[1.2,-.45],[-1,.45],[1.2,.45]].forEach(p=>box(.07,.86,.07,METAL,p[0],.43,p[1],rv));
+box(.7,.03,.25,BLK,-.05,.955,0,rv);
+box(.6,.07,.6,RCH,-.85,.53,0,rv);box(.07,.7,.6,RCH,-1.17,.9,0,rv);cyl(.03,.5,METAL,-.85,.27,0,rv);cyl(.3,.03,METAL,-.85,.03,0,rv);
+const tors=new THREE.Mesh(new THREE.CapsuleGeometry(.2,.35,6,14),RSH);tors.position.set(-.75,1.15,0);tors.castShadow=true;rv.add(tors);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.17,18,14),SKN);head.position.set(-.7,1.62,0);head.castShadow=true;rv.add(head);
+const hair=new THREE.Mesh(new THREE.SphereGeometry(.18,16,10,0,Math.PI*2,0,Math.PI*.55),M(0x2a1a10,{roughness:.8}));hair.position.set(-.72,1.64,0);rv.add(hair);
+[-1,1].forEach(s=>{const a=new THREE.Mesh(new THREE.CapsuleGeometry(.055,.5,6,10),RSH);a.position.set(-.42,1.12,s*.2);a.rotation.z=1.12;rv.add(a);
+ const th=new THREE.Mesh(new THREE.CapsuleGeometry(.09,.4,6,10),RJ);th.position.set(-.55,.62,s*.13);th.rotation.z=Math.PI/2;rv.add(th);
+ const sh=new THREE.Mesh(new THREE.CapsuleGeometry(.07,.35,6,10),RJ);sh.position.set(-.3,.32,s*.13);rv.add(sh)});
+const rvMon=new THREE.Group();rvMon.position.set(.8,1.6,0);rvMon.rotation.y=-.3;rv.add(rvMon);
+box(1.9,1.1,.06,SATIN,0,0,0,rvMon);box(.1,.12,.06,METAL,0,-.6,-.04,rvMon);box(.5,.02,.3,METAL,0,-.66,-.05,rvMon);
+const rvC=document.createElement('canvas');rvC.width=512;rvC.height=288;const rvT=new THREE.CanvasTexture(rvC);rvT.colorSpace=THREE.SRGBColorSpace;
+const rvScr=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.0),new THREE.MeshBasicMaterial({map:rvT,toneMapped:false}));rvScr.position.z=.035;rvMon.add(rvScr);
+const tgC=document.createElement('canvas');tgC.width=256;tgC.height=64;const tgT=new THREE.CanvasTexture(tgC);tgT.colorSpace=THREE.SRGBColorSpace;
+const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:tgT,transparent:true,depthTest:false,fog:false}));tag.scale.set(1.6,.4,1);tag.position.set(-.75,2.15,0);rv.add(tag);
+function tgDraw(){const g=tgC.getContext('2d');g.clearRect(0,0,256,64);g.fillStyle='rgba(18,10,30,.85)';rr(g,2,6,252,52,16);g.fill();g.strokeStyle='#d4af37';g.lineWidth=3;g.stroke();g.fillStyle='#fff';g.font='bold 28px '+FNT;g.textAlign='center';g.textBaseline='middle';g.fillText((BT.name||'Adversaire').slice(0,14),128,33);tgT.needsUpdate=true}
+function rvDraw(){const g=rvC.getContext('2d');g.textBaseline='alphabetic';const gr=g.createLinearGradient(0,0,512,288);gr.addColorStop(0,'#050f2a');gr.addColorStop(1,'#0b3f9c');g.fillStyle=gr;g.fillRect(0,0,512,288);g.fillStyle='rgba(90,170,255,.4)';g.beginPath();g.ellipse(256,130,60,90,0,0,7);g.fill();
+ g.fillStyle='#fff';g.font='bold 30px '+FNT;g.textAlign='center';g.fillText('💻 '+(BT.name||'…'),256,60);g.fillStyle='rgba(22,24,34,.95)';g.fillRect(0,258,512,30);
+ if(BT.wet>0){g.fillStyle='rgba(120,220,150,.28)';g.fillRect(0,0,512,288);g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=2;BT.cr.forEach(c=>{g.beginPath();g.moveTo(c.x,c.y);g.lineTo(c.x+Math.cos(c.a)*c.l,c.y+Math.sin(c.a)*c.l);g.stroke()});
+  g.fillStyle='rgba(150,240,180,.6)';BT.dr.forEach(d=>g.fillRect(d.x,0,6,Math.min(288,d.l*(1-BT.wet/6)+30)))}
+ rvT.needsUpdate=true;BT.dirty=0}
+// secousse de caméra : appliquée à chaque lookAt (la boucle principale l'appelle à chaque image) → tout l'écran bouge, bureau compris
+{const lk0=cam.lookAt;cam.lookAt=function(a,b,c){const s=BT.shake,k=s.t>0?s.a*Math.pow(s.t/s.d,.7):0;if(k){this.position.x+=(Math.random()-.5)*k;this.position.y+=(Math.random()-.5)*k*.7;this.position.z+=(Math.random()-.5)*k*.4}lk0.call(this,a,b,c);if(k)this.rotateZ((Math.random()-.5)*k*.18)}}
+function btShards(p,n,fy,pw){for(let i=0;i<n;i++){const m=new THREE.Mesh(btSh,btGlass);m.scale.set(R(.5,1.5),R(.5,1.5),R(.5,1.5));m.position.copy(p);sc.add(m);BT.sh.push({m,v:new THREE.Vector3(R(-1,1)*pw,R(.5,2.5)*pw*.8,R(-1,1)*pw),r:R(-8,8),l:R(1.2,2),fy})}
+ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0x9dffc0,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,fog:false}));sp.position.copy(p);sp.scale.set(.3,.3,1);sc.add(sp);BT.spl.push({m:sp,t:0})}
+function btGlassSnd(big){tick({f:2200,q:.8,d:.28,v:big?1.6:1.1,type:'bandpass'});for(let i=0;i<16;i++)tick({f:2500+Math.random()*5000,q:6,d:.05+Math.random()*.12,v:.45,at:.02+i*.035+Math.random()*.04,type:'highpass'});tick({f:200,q:.7,d:.2,v:.9,th:140,tv:.5})}
+function btSplash(){const d=document.createElement('div');d.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:20;transition:opacity 4s ease-in;opacity:1;background:'+Array.from({length:7},()=>`radial-gradient(circle at ${R(10,90)|0}% ${R(10,90)|0}%,rgba(120,220,150,.55) 0,rgba(120,220,150,.3) ${R(2,6)|0}%,transparent ${R(7,15)|0}%)`).join(',');document.body.appendChild(d);requestAnimationFrame(()=>requestAnimationFrame(()=>d.style.opacity=0));setTimeout(()=>d.remove(),4300)}
+// impact côté LANCEUR : la bouteille se brise sur l'écran adverse
+function btImpact(p){btShards(p,18,.95,2.2);btGlassSnd();BT.rs=1.1;BT.wet=6;BT.cr=Array.from({length:14},()=>({x:256+R(-60,60),y:140+R(-40,40),a:R(0,6.28),l:R(40,160)}));BT.dr=Array.from({length:6},()=>({x:R(40,470),l:R(60,200)}))}
+// impact côté VICTIME : la bouteille vient de la gauche, se brise sur TON écran, tout tremble
+function btVictim(){if(!BT.on)return;const m=btBottle(1.2),a=new THREE.Vector3();rvScr.getWorldPosition(a);m.position.copy(a);sc.add(m);const b=cam.localToWorld(new THREE.Vector3(R(-.3,.3),R(-.15,.15),-1.0));
+ BT.fly.push({m,a,b,u:0,dur:.55,h:.5,sp:R(8,14),cb:()=>{btShards(b,22,-99,2.6);btGlassSnd(1);btSplash();BT.shake={t:1.8,d:1.8,a:view=='home'?.4:.16};toast('💥 '+(BT.name||'L’adversaire')+' t’a lancé une bouteille !')}})}
+function btPick(g){if(BT.hold||performance.now()<BT.cool)return;let c=g;while(c&&c.parent!==btCrate)c=c.parent;BT.hold=btBottle(1.2);BT.hold.position.set(.55,-.45,-1.2);BT.hold.rotation.set(.2,0,-.3);cam.add(BT.hold);
+ if(c){c.visible=false;BT.resp.push({g:c,t:0})}tick({f:1500,q:2,d:.03,v:.8})}
+function btThrow(){if(!BT.hold||performance.now()<BT.cool)return;const m=BT.hold;BT.hold=null;const a=new THREE.Vector3();m.getWorldPosition(a);cam.remove(m);m.position.copy(a);m.rotation.set(0,0,0);sc.add(m);
+ const b=new THREE.Vector3();rvScr.getWorldPosition(b);b.x+=R(-.35,.35);b.y+=R(-.25,.25);b.z+=.15;
+ BT.fly.push({m,a,b,u:0,dur:.6,h:1.0,sp:R(8,14),cb:()=>btImpact(b)});BT.cool=performance.now()+450;BT.n++;tick({f:700,q:.6,d:.3,v:.6,type:'bandpass',rate:.5});
+ if(fb&&DUO.code)fb.Db.push(fb.Db.ref(fb.db,`rooms/${DUO.code}/fx`),{f:DUO.me,t:Date.now()}).catch(e=>toast(dErr(e)))}
+// clic : prendre une bouteille / la lancer (capture : passe avant le clic « écran » du PC)
+const btRC=new THREE.Raycaster(),btV=new THREE.Vector2();
+addEventListener('click',e=>{if(e.target!==cv||!BT.on||view!='home'||busy||benchBusy||tut.s>=0||pn.style.display=='block')return;
+ if(BT.hold){e.stopImmediatePropagation();e.preventDefault();btThrow();return}
+ btV.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);btRC.setFromCamera(btV,cam);const h=btRC.intersectObjects(btCB,true)[0];
+ if(h){e.stopImmediatePropagation();e.preventDefault();btPick(h.object)}},true);
+cv.addEventListener('contextmenu',e=>{if(BT.hold){e.preventDefault();cam.remove(BT.hold);BT.hold=null}});
+// réception des bouteilles de l'adversaire (Firebase : rooms/CODE/fx)
+function fxStop(){if(BT.fxOff){try{BT.fxOff()}catch(e){}BT.fxOff=null}}
+function fxStart(f,code,me){fxStop();BT.seen=new Set();const r=f.Db.ref(f.db,`rooms/${code}/fx`);
+ f.Db.get(r).then(s=>{if(DUO.code!=code)return;s.forEach(c=>{BT.seen.add(c.key)});
+  BT.fxOff=f.Db.onChildAdded(r,c=>{if(BT.seen.has(c.key))return;BT.seen.add(c.key);const v=c.val()||{};if(v.f==me)return;btVictim();f.Db.remove(c.ref).catch(()=>{})})}).catch(e=>toast(dErr(e)))}
+{const dw0=duoWatch,ds0=duoStop;duoStop=function(){ds0();fxStop()};duoWatch=function(f,code,me){dw0(f,code,me);fxStart(f,code,me)}}
+// HUD + présence de l'adversaire
+const btH=document.createElement('div');btH.style.cssText='position:fixed;left:14px;bottom:14px;z-index:9;background:#120a1ecc;border:1px solid #d4af37;border-radius:10px;padding:8px 12px;font-size:14px;display:none;max-width:300px';document.body.appendChild(btH);
+setInterval(()=>{const d=DUO.data,pr=!!(DUO.code&&d&&d.p1&&d.p2),me=DUO.me,nm=pr?String((me==1?d.p2:d.p1).n||'Adversaire'):'';
+ if(pr){if(!BT.on)toast('🍾 '+nm+' est là ! Quitte l’écran (✕ Retour) : prends une bouteille sur ton bureau et lance-la sur lui.');if(nm!==BT.name){BT.name=nm;tgDraw();BT.dirty=1}btCrate.position.set(me==1?-3.0:3.05,.98,me==1?.75:.9);btL2.position.set(btCrate.position.x,1.6,btCrate.position.z+.3)}
+ else if(BT.hold){cam.remove(BT.hold);BT.hold=null}
+ BT.on=pr;btG.visible=pr;btL.intensity=pr?12:0;btL2.intensity=pr?3:0;
+ const vis=pr&&view=='home'&&pn.style.display!='block'&&!busy;btH.style.display=vis?'block':'none';
+ if(vis)btH.innerHTML=BT.hold?'🍾 Clique pour <b>lancer</b> sur '+esc(nm)+' · clic droit : reposer':'🍾 Clique une <b>bouteille</b> sur ton bureau (∞) pour la prendre · lancées : '+BT.n},250);
+tgDraw();rvDraw();
+// boucle d'animation des bouteilles
+let btT=performance.now();
+(function btLoop(t){requestAnimationFrame(btLoop);const dt=Math.min(.05,(t-btT)/1000);btT=t;
+ if(BT.shake.t>0)BT.shake.t=Math.max(0,BT.shake.t-dt);
+ // caméra : décalée vers la gauche + champ plus large quand l'adversaire est là
+ BT.cx+=((BT.on?-.8:0)-BT.cx)*Math.min(1,dt*5);home.p.x=.5+BT.cx;home.l.x=.4+BT.cx;if(view=='home'){tp.x=home.p.x;tl.x=home.l.x}
+ const tf=BT.on?56:50;if(Math.abs(cam.fov-tf)>.02){cam.fov+=(tf-cam.fov)*Math.min(1,dt*5);cam.updateProjectionMatrix()}
+ if(BT.rs>0){BT.rs=Math.max(0,BT.rs-dt);const k=BT.rs*.18;rv.position.set(-5.7+(Math.random()-.5)*k,(Math.random()-.5)*k*.4,-2.3+(Math.random()-.5)*k);rvMon.rotation.z=(Math.random()-.5)*k*.6}else if(rv.position.x!=-5.7){rv.position.set(-5.7,0,-2.3);rvMon.rotation.z=0}
+ if(BT.wet>0){BT.wet-=dt;if(BT.wet<=0)BT.wet=0;rvDraw()}else if(BT.dirty)rvDraw();
+ if(BT.hold)BT.hold.rotation.z=-.3+Math.sin(t/300)*.05;
+ for(let i=BT.fly.length-1;i>=0;i--){const o=BT.fly[i];o.u+=dt/o.dur;const u=Math.min(1,o.u);o.m.position.lerpVectors(o.a,o.b,u);o.m.position.y+=Math.sin(u*Math.PI)*o.h;o.m.rotation.x+=dt*o.sp;o.m.rotation.z+=dt*o.sp*.6;if(o.u>=1){sc.remove(o.m);BT.fly.splice(i,1);o.cb()}}
+ for(let i=BT.sh.length-1;i>=0;i--){const s=BT.sh[i];s.v.y-=9*dt;s.m.position.addScaledVector(s.v,dt);s.m.rotation.x+=s.r*dt;s.m.rotation.y+=s.r*dt;if(s.m.position.y<s.fy){s.m.position.y=s.fy;s.v.set(s.v.x*.4,0,s.v.z*.4)}s.l-=dt;if(s.l<.3)s.m.scale.multiplyScalar(.9);if(s.l<=0){sc.remove(s.m);BT.sh.splice(i,1)}}
+ for(let i=BT.spl.length-1;i>=0;i--){const o=BT.spl[i];o.t+=dt;const k=o.t/.6;o.m.scale.set(.3+k*1.6,.3+k*1.6,1);o.m.material.opacity=Math.max(0,1-k);if(k>=1){sc.remove(o.m);o.m.material.dispose();BT.spl.splice(i,1)}}
+ for(let i=BT.resp.length-1;i>=0;i--){const r=BT.resp[i];r.t+=dt;if(r.t>.5){r.g.visible=true;const k=Math.min(1,(r.t-.5)/.3);r.g.scale.setScalar(Math.max(.05,k)*1.2);if(k>=1)BT.resp.splice(i,1)}}
+})(btT);
